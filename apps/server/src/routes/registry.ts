@@ -129,7 +129,7 @@ function parseLinkTeamsBody(body: unknown): { sourceWorkspaceId: string; teamIds
   if (typeof sourceWorkspaceId !== 'string' || !sourceWorkspaceId.trim()) throw new RouteError(400, 'sourceWorkspaceId is required');
   if (!Array.isArray(teamIds) || !teamIds.length || !teamIds.every((id) => typeof id === 'string' && id.trim())) throw new RouteError(400, 'teamIds must be a non-empty string array');
   if (new Set(teamIds).size !== teamIds.length) throw new RouteError(400, 'teamIds must not contain duplicates');
-  if (suppliedRenames !== undefined && !asRecord(suppliedRenames)) throw new RouteError(400, 'renames must be an object keyed by source agent id');
+  if (suppliedRenames !== undefined && !asRecord(suppliedRenames)) throw new RouteError(400, 'renames must be an object keyed by source team or agent id');
 
   const renames: Record<string, string> = {};
   for (const [agentId, value] of Object.entries(asRecord(suppliedRenames) ?? {})) {
@@ -409,15 +409,16 @@ export default async function registryRoutes(app: FastifyInstance): Promise<void
         const team = sourceTeamsById.get(teamId);
         if (!team) throw new RouteError(404, `Source team not found: ${teamId}`);
         if (registryStore.findLink(sourceWorkspaceId, team.id, targetId, 'team')) throw new RouteError(409, `Source team is already linked to this workspace: ${team.id}`);
-        if (usedNames.has(team.name)) throw new RouteError(409, `Target already has a team named: ${team.name}`, { sourceTeamId: team.id, sourceTeamName: team.name, requiresRename: true });
-        usedNames.add(team.name);
+        const targetName = renames[team.id] ?? team.name;
+        if (usedNames.has(targetName)) throw new RouteError(409, `Target already has a team named: ${targetName}`, { sourceTeamId: team.id, sourceTeamName: team.name, requiresRename: true });
+        usedNames.add(targetName);
         const memberIds = [...new Set([team.lead_agent_id, ...team.members.map((member) => member.agent_id)])];
         const members = memberIds.map((agentId) => {
           const agent = sourceAgentsById.get(agentId);
           if (!agent) throw new RouteError(409, `Source team ${team.id} references a missing agent: ${agentId}`);
           return agent;
         });
-        prepared.push({ team, snapshot: teamSnapshot(team, sourceAgentsById), sourceAgents: members });
+        prepared.push({ team: { ...team, name: targetName }, snapshot: teamSnapshot(team, sourceAgentsById), sourceAgents: members });
       }
 
       const allSourceAgents = [...new Map(prepared.flatMap((item) => item.sourceAgents).map((agent) => [agent.id, agent])).values()];
