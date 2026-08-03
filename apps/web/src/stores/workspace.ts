@@ -36,6 +36,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       if (list.length > 0) {
         if (!activeWorkspaceId.value || !list.some((w) => w.id === activeWorkspaceId.value)) {
           selectWorkspace(list[0].id);
+        } else {
+          void syncWatchStatus(activeWorkspaceId.value);
         }
       } else {
         activeWorkspaceId.value = null;
@@ -47,11 +49,26 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  async function syncWatchStatus(workspaceId: string) {
+    try {
+      const res = await api.getWatchStatus(workspaceId);
+      if (activeWorkspaceId.value === workspaceId) {
+        isWatchRunning.value = res.watching;
+      }
+    } catch (err) {
+      console.error('Failed to sync watch status:', err);
+      if (activeWorkspaceId.value === workspaceId) {
+        isWatchRunning.value = false;
+      }
+    }
+  }
+
   function selectWorkspace(id: string) {
     activeWorkspaceId.value = id;
     localStorage.setItem(STORAGE_KEY, id);
     isWatchRunning.value = false;
     lockError.value = null;
+    void syncWatchStatus(id);
   }
 
   async function registerAndSelect(projectRoot: string, label?: string) {

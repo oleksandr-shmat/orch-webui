@@ -201,6 +201,13 @@ export const api = {
     return handleResponse<BrowseDirectoryResponse>(res);
   },
 
+  async getWatchStatus(workspaceId: string): Promise<OrchestratorWatchResponse> {
+    const res = await fetch(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/watch/status`,
+    );
+    return handleResponse<OrchestratorWatchResponse>(res);
+  },
+
   async startWatch(workspaceId: string): Promise<OrchestratorWatchResponse> {
     const res = await postJson(`/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/watch/start`);
     return handleResponse<OrchestratorWatchResponse>(res);
