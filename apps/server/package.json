@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:sse": "tsx test/sse-smoke-test.ts",
     "test:crud": "tsx test/crud-live-test.ts",
-    "test:registry": "tsx test/registry-live-test.ts"
+    "test:registry": "tsx test/registry-live-test.ts",
+    "test:team-registry": "tsx test/team-registry-live-test.ts"
   },
   "dependencies": {
     "@oxgeneral/orch": "^1.0.34",
