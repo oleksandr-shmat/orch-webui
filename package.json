@@ -1,0 +1,15 @@
+{
+  "name": "orch-webui",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev:server": "npm run dev -w apps/server",
+    "typecheck:server": "npm run typecheck -w apps/server"
+  }
+}
