@@ -13,7 +13,8 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3001',
+        // Must match apps/server default PORT (apps/server/src/server.ts).
+        target: 'http://127.0.0.1:4317',
         changeOrigin: true
       }
     }
