@@ -15,6 +15,11 @@ const AGENT_SNAPSHOT_FIELDS = [...UPDATABLE_AGENT_FIELDS, ...RECREATE_ONLY_AGENT
 type AgentSnapshotField = typeof AGENT_SNAPSHOT_FIELDS[number];
 type AgentSnapshot = CreateAgentInput;
 type AgentUpdate = Parameters<Container['agentService']['update']>[1];
+type OrchestratorTeam = Awaited<ReturnType<Container['teamService']['get']>>;
+type TeamSnapshot = Pick<OrchestratorTeam, 'name' | 'description' | 'config'> & {
+  lead_agent_name: string;
+  member_agent_names: string[];
+};
 
 interface SnapshotDiff {
   field: AgentSnapshotField;
@@ -116,9 +121,33 @@ function parseLinkAgentsBody(body: unknown): { sourceWorkspaceId: string; agentI
   return { sourceWorkspaceId, agentIds, renames };
 }
 
+function parseLinkTeamsBody(body: unknown): { sourceWorkspaceId: string; teamIds: string[]; renames: Record<string, string> } {
+  const record = asRecord(body);
+  const sourceWorkspaceId = record?.sourceWorkspaceId;
+  const teamIds = record?.teamIds;
+  const suppliedRenames = record?.renames;
+  if (typeof sourceWorkspaceId !== 'string' || !sourceWorkspaceId.trim()) throw new RouteError(400, 'sourceWorkspaceId is required');
+  if (!Array.isArray(teamIds) || !teamIds.length || !teamIds.every((id) => typeof id === 'string' && id.trim())) throw new RouteError(400, 'teamIds must be a non-empty string array');
+  if (new Set(teamIds).size !== teamIds.length) throw new RouteError(400, 'teamIds must not contain duplicates');
+  if (suppliedRenames !== undefined && !asRecord(suppliedRenames)) throw new RouteError(400, 'renames must be an object keyed by source agent id');
+
+  const renames: Record<string, string> = {};
+  for (const [agentId, value] of Object.entries(asRecord(suppliedRenames) ?? {})) {
+    if (typeof value !== 'string' || !value.trim()) throw new RouteError(400, `rename for ${agentId} must be a non-empty string`);
+    renames[agentId] = value.trim();
+  }
+  return { sourceWorkspaceId, teamIds, renames };
+}
+
 function requireAgentLink(targetId: string, linkId: string) {
   const link = registryStore.listLinks(targetId).find((item) => item.id === linkId && item.kind === 'agent');
   if (!link) throw new RouteError(404, `Agent registry link not found: ${linkId}`);
+  return link;
+}
+
+function requireTeamLink(targetId: string, linkId: string) {
+  const link = registryStore.listLinks(targetId).find((item) => item.id === linkId && item.kind === 'team');
+  if (!link) throw new RouteError(404, `Team registry link not found: ${linkId}`);
   return link;
 }
 
@@ -127,6 +156,72 @@ async function sourceSnapshotForLink(link: ReturnType<typeof requireAgentLink>):
   const agent = await source.agentService.get(link.sourceEntityId).catch(() => undefined);
   if (!agent) throw new RouteError(404, `Source agent no longer exists: ${link.sourceEntityId}`);
   return { source, snapshot: copyAgentInput(agent) };
+}
+
+function teamSnapshot(team: OrchestratorTeam, agentsById: Map<string, Agent>): TeamSnapshot {
+  const nameFor = (agentId: string) => {
+    const agent = agentsById.get(agentId);
+    if (!agent) throw new RouteError(409, `Team ${team.id} references a missing agent: ${agentId}`);
+    return agent.name;
+  };
+  return {
+    name: team.name,
+    description: team.description,
+    config: structuredClone(team.config),
+    lead_agent_name: nameFor(team.lead_agent_id),
+    member_agent_names: team.members.map((member) => nameFor(member.agent_id)).sort(),
+  };
+}
+
+async function sourceTeamSnapshotForLink(link: ReturnType<typeof requireTeamLink>): Promise<{ source: Container; team: OrchestratorTeam; snapshot: TeamSnapshot; agentsById: Map<string, Agent> }> {
+  const source = await containerFor(link.sourceWorkspaceId);
+  const [team, agents] = await Promise.all([source.teamService.get(link.sourceEntityId).catch(() => undefined), source.agentService.list()]);
+  if (!team) throw new RouteError(404, `Source team no longer exists: ${link.sourceEntityId}`);
+  const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+  return { source, team, snapshot: teamSnapshot(team, agentsById), agentsById };
+}
+
+async function ensureTargetAgents(
+  sourceWorkspaceId: string,
+  targetId: string,
+  sourceAgents: Agent[],
+  target: Container,
+  renames: Record<string, string>,
+): Promise<Map<string, string>> {
+  const targetAgents = await target.agentService.list();
+  const targetById = new Map(targetAgents.map((agent) => [agent.id, agent]));
+  const usedNames = new Set(targetAgents.map((agent) => agent.name));
+  const resolved = new Map<string, string>();
+  const toCreate: Array<{ source: Agent; input: CreateAgentInput }> = [];
+
+  for (const sourceAgent of sourceAgents) {
+    const existing = registryStore.findLink(sourceWorkspaceId, sourceAgent.id, targetId, 'agent');
+    if (existing) {
+      if (!targetById.has(existing.targetEntityId)) throw new RouteError(409, `Linked target agent no longer exists: ${existing.targetEntityId}`);
+      resolved.set(sourceAgent.id, existing.targetEntityId);
+      continue;
+    }
+    const input = copyAgentInput(sourceAgent, renames[sourceAgent.id] ?? sourceAgent.name);
+    if (usedNames.has(input.name)) {
+      throw new RouteError(409, `Target already has an agent named: ${input.name}`, { sourceAgentId: sourceAgent.id, sourceAgentName: sourceAgent.name, requiresRename: true });
+    }
+    usedNames.add(input.name);
+    toCreate.push({ source: sourceAgent, input });
+  }
+
+  for (const { source: sourceAgent, input } of toCreate) {
+    const created = await target.agentService.create(input);
+    await registryStore.createLink({
+      kind: 'agent',
+      sourceWorkspaceId,
+      sourceEntityId: sourceAgent.id,
+      targetWorkspaceId: targetId,
+      targetEntityId: created.id,
+      lastSyncedSnapshot: copyAgentInput(sourceAgent),
+    });
+    resolved.set(sourceAgent.id, created.id);
+  }
+  return resolved;
 }
 
 async function recreateWarnings(target: Container, targetAgentId: string): Promise<Record<string, unknown>> {
@@ -293,6 +388,114 @@ export default async function registryRoutes(app: FastifyInstance): Promise<void
     } catch (err) {
       if (err instanceof RouteError) return reply.code(err.statusCode).send({ error: err.message, ...err.details });
       request.log.warn({ err, targetWorkspaceId: request.params.targetId, linkId: request.params.linkId }, 'agent registry recreate failed');
+      return reply.code(400).send({ error: (err as Error).message });
+    }
+  });
+
+  app.post<{ Params: TargetParams; Body: unknown }>('/api/workspaces/:targetId/registry/link-teams', async (request, reply) => {
+    try {
+      const targetId = request.params.targetId;
+      const { sourceWorkspaceId, teamIds, renames } = parseLinkTeamsBody(request.body);
+      if (targetId === sourceWorkspaceId) throw new RouteError(400, 'sourceWorkspaceId and targetId must differ');
+
+      const [source, target] = await Promise.all([containerFor(sourceWorkspaceId), containerFor(targetId)]);
+      const [sourceTeams, sourceAgents, targetTeams] = await Promise.all([source.teamService.list(), source.agentService.list(), target.teamService.list()]);
+      const sourceTeamsById = new Map(sourceTeams.map((team) => [team.id, team]));
+      const sourceAgentsById = new Map(sourceAgents.map((agent) => [agent.id, agent]));
+      const usedNames = new Set(targetTeams.map((team) => team.name));
+      const prepared: Array<{ team: OrchestratorTeam; snapshot: TeamSnapshot; sourceAgents: Agent[] }> = [];
+
+      for (const teamId of teamIds) {
+        const team = sourceTeamsById.get(teamId);
+        if (!team) throw new RouteError(404, `Source team not found: ${teamId}`);
+        if (registryStore.findLink(sourceWorkspaceId, team.id, targetId, 'team')) throw new RouteError(409, `Source team is already linked to this workspace: ${team.id}`);
+        if (usedNames.has(team.name)) throw new RouteError(409, `Target already has a team named: ${team.name}`, { sourceTeamId: team.id, sourceTeamName: team.name, requiresRename: true });
+        usedNames.add(team.name);
+        const memberIds = [...new Set([team.lead_agent_id, ...team.members.map((member) => member.agent_id)])];
+        const members = memberIds.map((agentId) => {
+          const agent = sourceAgentsById.get(agentId);
+          if (!agent) throw new RouteError(409, `Source team ${team.id} references a missing agent: ${agentId}`);
+          return agent;
+        });
+        prepared.push({ team, snapshot: teamSnapshot(team, sourceAgentsById), sourceAgents: members });
+      }
+
+      const allSourceAgents = [...new Map(prepared.flatMap((item) => item.sourceAgents).map((agent) => [agent.id, agent])).values()];
+      const targetAgentIds = await ensureTargetAgents(sourceWorkspaceId, targetId, allSourceAgents, target, renames);
+      const links = [];
+      for (const { team, snapshot } of prepared) {
+        const memberAgentIds = [...new Set(team.members.map((member) => targetAgentIds.get(member.agent_id)))];
+        const leadAgentId = targetAgentIds.get(team.lead_agent_id);
+        if (!leadAgentId || memberAgentIds.some((id) => !id)) throw new RouteError(409, `Could not map all source agents for team: ${team.id}`);
+        const created = await target.teamService.create({
+          name: team.name,
+          description: team.description,
+          lead_agent_id: leadAgentId,
+          member_agent_ids: memberAgentIds as string[],
+          config: structuredClone(team.config),
+        });
+        const link = await registryStore.createLink({
+          kind: 'team',
+          sourceWorkspaceId,
+          sourceEntityId: team.id,
+          targetWorkspaceId: targetId,
+          targetEntityId: created.id,
+          lastSyncedSnapshot: snapshot,
+        });
+        links.push({ link, team: created });
+      }
+      return reply.code(201).send({ links });
+    } catch (err) {
+      if (err instanceof RouteError) return reply.code(err.statusCode).send({ error: err.message, ...err.details });
+      request.log.warn({ err, targetWorkspaceId: request.params.targetId }, 'team registry link failed');
+      return reply.code(400).send({ error: (err as Error).message });
+    }
+  });
+
+  app.post<{ Params: TargetParams & { linkId: string } }>('/api/workspaces/:targetId/registry/sync-team/:linkId', async (request, reply) => {
+    try {
+      const link = requireTeamLink(request.params.targetId, request.params.linkId);
+      const [{ team: sourceTeam, snapshot, agentsById }, target] = await Promise.all([sourceTeamSnapshotForLink(link), containerFor(request.params.targetId)]);
+      const targetTeam = await target.teamService.get(link.targetEntityId).catch(() => undefined);
+      if (!targetTeam) throw new RouteError(404, `Target team no longer exists: ${link.targetEntityId}`);
+
+      const sourceMemberIds = [...new Set([sourceTeam.lead_agent_id, ...sourceTeam.members.map((member) => member.agent_id)])];
+      const sourceMembers = sourceMemberIds.map((agentId) => {
+        const agent = agentsById.get(agentId);
+        if (!agent) throw new RouteError(409, `Source team ${sourceTeam.id} references a missing agent: ${agentId}`);
+        return agent;
+      });
+      const targetAgentIds = await ensureTargetAgents(link.sourceWorkspaceId, request.params.targetId, sourceMembers, target, {});
+      const desiredMemberIds = new Set(sourceTeam.members.map((member) => targetAgentIds.get(member.agent_id)).filter((id): id is string => Boolean(id)));
+      const desiredLeadId = targetAgentIds.get(sourceTeam.lead_agent_id);
+      if (!desiredLeadId) throw new RouteError(409, `Could not map source team lead: ${sourceTeam.lead_agent_id}`);
+
+      const currentMemberIds = new Set(targetTeam.members.map((member) => member.agent_id));
+      const addedMemberIds = [...desiredMemberIds].filter((id) => !currentMemberIds.has(id));
+      const removedMemberIds = [...currentMemberIds].filter((id) => !desiredMemberIds.has(id));
+      for (const agentId of addedMemberIds) await target.teamService.join(targetTeam.id, agentId);
+      if (targetTeam.lead_agent_id !== desiredLeadId) await target.teamService.setLead(targetTeam.id, desiredLeadId);
+      for (const agentId of removedMemberIds) await target.teamService.leave(targetTeam.id, agentId);
+
+      const previous = link.lastSyncedSnapshot as TeamSnapshot;
+      const manualOnlyDiff = (['name', 'description', 'config'] as const).flatMap((field) =>
+        sameValue(previous[field], snapshot[field]) ? [] : [{ field, previous: previous[field], current: snapshot[field], manualOnly: true }],
+      );
+      const updatedLink = await registryStore.updateLinkSnapshot(link.id, snapshot);
+      const team = await target.teamService.get(targetTeam.id);
+      return {
+        link: updatedLink,
+        team,
+        appliedDiff: {
+          addedMemberNames: sourceMembers.filter((agent) => addedMemberIds.includes(targetAgentIds.get(agent.id) ?? '')).map((agent) => agent.name),
+          removedMemberIds,
+          leadChanged: targetTeam.lead_agent_id !== desiredLeadId,
+        },
+        manualOnlyDiff,
+      };
+    } catch (err) {
+      if (err instanceof RouteError) return reply.code(err.statusCode).send({ error: err.message, ...err.details });
+      request.log.warn({ err, targetWorkspaceId: request.params.targetId, linkId: request.params.linkId }, 'team registry sync failed');
       return reply.code(400).send({ error: (err as Error).message });
     }
   });
