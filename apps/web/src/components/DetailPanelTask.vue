@@ -7,7 +7,8 @@ import Select from 'primevue/select';
 import Dialog from 'primevue/dialog';
 import DetailPanel from './DetailPanel.vue';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { api, type TaskRecord, type RunRecord, type AgentRecord } from '@/api/client';
+import { useAgents } from '@/composables/useAgents';
+import { api, type TaskRecord, type RunRecord } from '@/api/client';
 import { taskStatus, runStatus } from '@/theme/status';
 
 const props = defineProps<{
@@ -22,10 +23,10 @@ const emit = defineEmits<{
 }>();
 
 const store = useWorkspaceStore();
+const { getAgentOptionsWithFallback, loadAgents } = useAgents(() => store.activeWorkspace?.id);
 
 const task = ref<TaskRecord | null>(null);
 const runs = ref<RunRecord[]>([]);
-const agents = ref<AgentRecord[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const actionLoading = ref<string | null>(null);
@@ -37,6 +38,8 @@ const editDescription = ref('');
 const editPriority = ref<number>(2);
 const editAssignee = ref<string>('');
 const editLabels = ref('');
+
+const displayAgentOptions = computed(() => getAgentOptionsWithFallback(editAssignee.value));
 
 // Reject modal state
 const isRejectModalOpen = ref(false);
@@ -61,15 +64,14 @@ async function loadData() {
   errorMessage.value = null;
 
   try {
-    const [fetchedTask, fetchedRuns, fetchedAgents] = await Promise.all([
+    const [fetchedTask, fetchedRuns] = await Promise.all([
       api.getTask(wsId, props.taskId),
       api.getTaskRuns(wsId, props.taskId).catch(() => []),
-      api.getAgents(wsId).catch(() => []),
+      loadAgents(),
     ]);
 
     task.value = fetchedTask;
     runs.value = fetchedRuns;
-    agents.value = fetchedAgents;
     resetEditForm(fetchedTask);
   } catch (err: any) {
     errorMessage.value = err.message || 'Failed to load task details';
@@ -257,11 +259,10 @@ async function handleDelete() {
             <label class="ow-eyebrow">Assignee Agent</label>
             <Select
               v-model="editAssignee"
-              :options="agents"
-              optionLabel="name"
-              optionValue="id"
+              :options="displayAgentOptions"
+              optionLabel="label"
+              optionValue="value"
               placeholder="Unassigned"
-              showClear
               class="form-select mono"
             />
           </div>
