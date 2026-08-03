@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import eventsRoute from './routes/events.js';
 import { workspaceManager } from './workspace/WorkspaceManager.js';
 
@@ -7,10 +7,10 @@ import { workspaceManager } from './workspace/WorkspaceManager.js';
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT ?? 4317);
 
-async function main(): Promise<void> {
+export async function buildApp(): Promise<FastifyInstance> {
   await workspaceManager.load();
 
-  const app = Fastify({ logger: true });
+  const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
 
   app.get('/api/health', async () => ({ ok: true }));
 
@@ -34,10 +34,20 @@ async function main(): Promise<void> {
 
   await app.register(eventsRoute);
 
-  await app.listen({ host: HOST, port: PORT });
+  return app;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+export async function startServer(): Promise<FastifyInstance> {
+  const app = await buildApp();
+  await app.listen({ host: HOST, port: PORT });
+  return app;
+}
+
+const isMainModule = process.argv[1] && (process.argv[1].endsWith('server.ts') || process.argv[1].endsWith('server.js'));
+if (isMainModule) {
+  startServer().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
