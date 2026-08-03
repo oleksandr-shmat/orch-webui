@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import eventsRoute from './routes/events.js';
 import crudRoutes from './routes/crud.js';
+import orchestratorRoute from './routes/orchestrator.js';
 import { workspaceManager } from './workspace/WorkspaceManager.js';
 
 // Never bind wider than loopback — this server can spawn real agent CLI processes on the
@@ -35,6 +36,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(eventsRoute);
   await app.register(crudRoutes);
+  await app.register(orchestratorRoute);
 
   return app;
 }
