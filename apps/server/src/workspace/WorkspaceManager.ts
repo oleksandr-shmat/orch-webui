@@ -1,9 +1,14 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { buildFullContainer, type Container } from '@oxgeneral/orch';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * `buildFullContainer(context: CliContext)` takes a plain object — `CliContext` itself is
@@ -29,6 +34,19 @@ export interface WorkspaceRecord {
   projectRoot: string;
   label: string;
   addedAt: string;
+}
+
+export interface BrowseDirectoryItem {
+  name: string;
+  path: string;
+  isDir: true;
+  hasOrchestry: boolean;
+}
+
+export interface BrowseDirectoryResult {
+  currentPath: string;
+  parentPath: string | null;
+  items: BrowseDirectoryItem[];
 }
 
 interface WorkspaceEntry {
@@ -116,6 +134,55 @@ export class WorkspaceManager {
     const record = this.get(id);
     if (!record) return false;
     return existsSync(join(record.projectRoot, '.orchestry'));
+  }
+
+  /** Initialize an already-registered folder using ORCH's CLI-only init command. */
+  async initialize(id: string): Promise<{ alreadyInitialized: boolean }> {
+    const entry = this.entries.get(id);
+    if (!entry) throw new Error(`Unknown workspace: ${id}`);
+    if (this.isInitialized(id)) return { alreadyInitialized: true };
+
+    // The package's `exports` map only declares an `import` condition for ".", so a CJS-style
+    // `require.resolve('@oxgeneral/orch')` throws ERR_PACKAGE_PATH_NOT_EXPORTED even though the
+    // package is installed (confirmed against the real installed package, not just in theory).
+    // `import.meta.resolve` honors the `import` condition and resolves to dist/index.js; `init`
+    // is CLI-only so we invoke its sibling dist/cli.js (per the package's own `bin` mapping)
+    // rather than deep-importing an unexported API.
+    const indexUrl = import.meta.resolve('@oxgeneral/orch');
+    const cliPath = join(dirname(fileURLToPath(indexUrl)), 'cli.js');
+    await execFileAsync(process.execPath, [cliPath, 'init'], {
+      cwd: entry.record.projectRoot,
+      maxBuffer: 1024 * 1024,
+    });
+    return { alreadyInitialized: false };
+  }
+
+  /** List immediate child directories for the server-side folder picker. */
+  async browseDirectory(requestedPath?: string): Promise<BrowseDirectoryResult> {
+    const currentPath = await realpath(requestedPath || homedir());
+    const currentStat = await stat(currentPath);
+    if (!currentStat.isDirectory()) throw new Error(`Path is not a directory: ${currentPath}`);
+
+    const entries = await readdir(currentPath, { withFileTypes: true });
+    const items = (await Promise.all(entries
+      .filter((entry) => entry.isDirectory())
+      .map(async (entry): Promise<BrowseDirectoryItem> => {
+        const path = join(currentPath, entry.name);
+        return {
+          name: entry.name,
+          path,
+          isDir: true,
+          hasOrchestry: existsSync(join(path, '.orchestry')),
+        };
+      })))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const parentPath = dirname(currentPath);
+    return {
+      currentPath,
+      parentPath: parentPath === currentPath ? null : parentPath,
+      items,
+    };
   }
 
   /**

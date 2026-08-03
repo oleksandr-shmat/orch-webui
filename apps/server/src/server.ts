@@ -11,6 +11,12 @@ import { workspaceManager } from './workspace/WorkspaceManager.js';
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT ?? 4317);
 
+function workspaceResponse(id: string) {
+  const workspace = workspaceManager.get(id);
+  if (!workspace) return undefined;
+  return { ...workspace, isInitialized: workspaceManager.isInitialized(id) };
+}
+
 export async function buildApp(): Promise<FastifyInstance> {
   await workspaceManager.load();
   await registryStore.load();
@@ -19,10 +25,10 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   app.get('/api/health', async () => ({ ok: true }));
 
-  // Minimal stand-in for workspace registration/listing so the SSE route below is reachable
-  // end-to-end. Full lifecycle (init/activate/forget, validation, fs browse) is its own task
-  // ("Server REST: workspace lifecycle routes") — this is intentionally not that surface.
-  app.get('/api/workspaces', async () => workspaceManager.list());
+  app.get('/api/workspaces', async () => workspaceManager.list().map((workspace) => ({
+    ...workspace,
+    isInitialized: workspaceManager.isInitialized(workspace.id),
+  })));
 
   app.post<{ Body: { projectRoot: string; label?: string } }>('/api/workspaces', async (request, reply) => {
     const { projectRoot, label } = request.body;
@@ -31,9 +37,63 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
     try {
       const record = await workspaceManager.register(projectRoot, label);
-      return record;
+      return workspaceResponse(record.id);
     } catch (err) {
       return reply.code(400).send({ error: (err as Error).message });
+    }
+  });
+
+  app.delete<{ Params: { id: string } }>('/api/workspaces/:id', async (request, reply) => {
+    if (!workspaceManager.get(request.params.id)) {
+      return reply.code(404).send({ error: `Unknown workspace: ${request.params.id}` });
+    }
+    await workspaceManager.forget(request.params.id);
+    return reply.code(204).send();
+  });
+
+  app.post<{ Params: { id: string } }>('/api/workspaces/:id/init', async (request, reply) => {
+    if (!workspaceManager.get(request.params.id)) {
+      return reply.code(404).send({ error: `Unknown workspace: ${request.params.id}` });
+    }
+    try {
+      const { alreadyInitialized } = await workspaceManager.initialize(request.params.id);
+      return { success: true, alreadyInitialized, workspace: workspaceResponse(request.params.id) };
+    } catch (error) {
+      request.log.error({ err: error, workspaceId: request.params.id }, 'failed to initialize workspace');
+      return reply.code(500).send({
+        error: 'WORKSPACE_INIT_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown workspace initialization error',
+      });
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/api/workspaces/:id/activate', async (request, reply) => {
+    if (!workspaceManager.get(request.params.id)) {
+      return reply.code(404).send({ error: `Unknown workspace: ${request.params.id}` });
+    }
+    if (!workspaceManager.isInitialized(request.params.id)) {
+      return reply.code(409).send({ error: 'Workspace has no .orchestry/ — run init first' });
+    }
+    try {
+      await workspaceManager.activate(request.params.id);
+      return { activated: true, workspace: workspaceResponse(request.params.id) };
+    } catch (error) {
+      request.log.error({ err: error, workspaceId: request.params.id }, 'failed to activate workspace');
+      return reply.code(500).send({
+        error: 'WORKSPACE_ACTIVATION_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown workspace activation error',
+      });
+    }
+  });
+
+  app.get<{ Querystring: { path?: string } }>('/api/fs/browse', async (request, reply) => {
+    try {
+      return await workspaceManager.browseDirectory(request.query.path);
+    } catch (error) {
+      return reply.code(400).send({
+        error: 'DIRECTORY_BROWSE_FAILED',
+        message: error instanceof Error ? error.message : 'Unable to browse directory',
+      });
     }
   });
 
