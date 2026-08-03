@@ -142,6 +142,15 @@ export interface RecreatePreviewResponse {
 }
 
 
+/** Fastify rejects `Content-Type: application/json` POSTs with an empty body — send `{}`. */
+function postJson(url: string, body?: unknown): Promise<Response> {
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let errorData: any;
@@ -176,11 +185,13 @@ export const api = {
     return handleResponse<WorkspaceRecord>(res);
   },
 
-  async initWorkspace(workspaceId: string): Promise<{ success: boolean; message?: string }> {
-    const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/init`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
+  async initWorkspace(workspaceId: string): Promise<{
+    success: boolean;
+    alreadyInitialized?: boolean;
+    workspace?: WorkspaceRecord;
+    message?: string;
+  }> {
+    const res = await postJson(`/api/workspaces/${encodeURIComponent(workspaceId)}/init`);
     return handleResponse(res);
   },
 
@@ -191,26 +202,17 @@ export const api = {
   },
 
   async startWatch(workspaceId: string): Promise<OrchestratorWatchResponse> {
-    const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/watch/start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const res = await postJson(`/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/watch/start`);
     return handleResponse<OrchestratorWatchResponse>(res);
   },
 
   async stopWatch(workspaceId: string): Promise<OrchestratorWatchResponse> {
-    const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/watch/stop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const res = await postJson(`/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/watch/stop`);
     return handleResponse<OrchestratorWatchResponse>(res);
   },
 
   async runAllTasks(workspaceId: string): Promise<{ accepted: boolean }> {
-    const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/run-all`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const res = await postJson(`/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/run-all`);
     return handleResponse(res);
   },
 
@@ -266,18 +268,16 @@ export const api = {
   },
 
   async cancelTask(workspaceId: string, taskId: string): Promise<TaskRecord> {
-    const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(taskId)}/cancel`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const res = await postJson(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(taskId)}/cancel`,
+    );
     return handleResponse<TaskRecord>(res);
   },
 
   async retryTask(workspaceId: string, taskId: string): Promise<TaskRecord> {
-    const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(taskId)}/retry`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const res = await postJson(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(taskId)}/retry`,
+    );
     return handleResponse<TaskRecord>(res);
   },
 
