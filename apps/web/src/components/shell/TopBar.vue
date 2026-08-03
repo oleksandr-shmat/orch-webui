@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import Button from 'primevue/button';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { api } from '@/api/client';
+import { api, type WorkspaceRecord } from '@/api/client';
 
 const store = useWorkspaceStore();
 const isDropdownOpen = ref(false);
@@ -19,6 +19,22 @@ function closeDropdown() {
 function selectWorkspace(id: string) {
   store.selectWorkspace(id);
   closeDropdown();
+}
+
+async function handleDeleteWorkspace(ws: WorkspaceRecord, event: Event) {
+  event.stopPropagation();
+  const isUninit = ws.isInitialized === false;
+  const confirmMsg = isUninit
+    ? `Forget uninitialized workspace "${ws.label}" (${ws.projectRoot})?`
+    : `Forget workspace "${ws.label}" (${ws.projectRoot})?`;
+
+  if (!window.confirm(confirmMsg)) return;
+
+  try {
+    await store.forgetWorkspace(ws.id);
+  } catch (err) {
+    console.error('Failed to forget workspace:', err);
+  }
 }
 
 function handleOpenModal() {
@@ -89,10 +105,9 @@ onUnmounted(() => {
             <div v-if="store.workspaces.length === 0" class="empty-list mono">
               No recent workspaces
             </div>
-            <button
+            <div
               v-for="ws in store.workspaces"
               :key="ws.id"
-              type="button"
               class="ws-item"
               :class="{ selected: ws.id === store.activeWorkspaceId }"
               @click="selectWorkspace(ws.id)"
@@ -103,7 +118,16 @@ onUnmounted(() => {
                 <span class="ws-item-path mono">{{ ws.projectRoot }}</span>
               </div>
               <span v-if="ws.isInitialized === false" class="uninit-badge mono">no .orchestry</span>
-            </button>
+              <button
+                type="button"
+                class="delete-ws-btn"
+                :class="{ 'uninit-delete': ws.isInitialized === false }"
+                title="Forget workspace"
+                @click.stop="handleDeleteWorkspace(ws, $event)"
+              >
+                <i class="pi pi-trash" aria-hidden="true"></i>
+              </button>
+            </div>
           </div>
 
           <div class="dropdown-footer">
@@ -382,6 +406,46 @@ onUnmounted(() => {
   background: rgba(232, 163, 61, 0.15);
   padding: 1px 4px;
   border-radius: 2px;
+}
+
+.delete-ws-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin-left: 4px;
+  background: transparent;
+  border: none;
+  border-radius: var(--p-radius-sm, 2px);
+  color: var(--p-surface-400);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: all var(--p-motion-duration-fast, 100ms) ease-out;
+  flex-shrink: 0;
+}
+
+.ws-item:hover .delete-ws-btn {
+  opacity: 0.9;
+}
+
+.delete-ws-btn:hover {
+  background: rgba(193, 88, 90, 0.2);
+  color: var(--p-status-danger, #c1585a);
+  opacity: 1;
+}
+
+.delete-ws-btn.uninit-delete {
+  opacity: 0.95;
+  color: var(--p-status-warning, #e8a33d);
+}
+
+.delete-ws-btn.uninit-delete:hover {
+  background: rgba(193, 88, 90, 0.25);
+  color: var(--p-status-danger, #c1585a);
+  opacity: 1;
 }
 
 .dropdown-footer {

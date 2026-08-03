@@ -195,6 +195,13 @@ export const api = {
     return handleResponse(res);
   },
 
+  async deleteWorkspace(id: string): Promise<void> {
+    const res = await fetch(`/api/workspaces/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    return handleResponse<void>(res);
+  },
+
   async browseDirectory(path?: string): Promise<BrowseDirectoryResponse> {
     const url = path ? `/api/fs/browse?path=${encodeURIComponent(path)}` : '/api/fs/browse';
     const res = await fetch(url);

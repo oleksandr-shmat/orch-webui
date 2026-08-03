@@ -112,6 +112,28 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  async function forgetWorkspace(id: string) {
+    isLoading.value = true;
+    try {
+      await api.deleteWorkspace(id);
+      workspaces.value = workspaces.value.filter((w) => w.id !== id);
+
+      if (activeWorkspaceId.value === id) {
+        if (workspaces.value.length > 0) {
+          selectWorkspace(workspaces.value[0].id);
+        } else {
+          activeWorkspaceId.value = null;
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+    } catch (err: unknown) {
+      console.error('Failed to forget workspace:', err);
+      throw err;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   function openBrowseModal() {
     isBrowseModalOpen.value = true;
   }
@@ -135,6 +157,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     selectWorkspace,
     registerAndSelect,
     initActiveWorkspace,
+    forgetWorkspace,
     toggleWatch,
     openBrowseModal,
     closeBrowseModal,

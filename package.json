@@ -9,11 +9,15 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
     "dev:web": "npm run dev -w apps/web",
     "dev:server": "npm run dev -w apps/server",
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "typecheck:server": "npm run typecheck -w apps/server",
     "typecheck:web": "npm run typecheck -w apps/web"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4"
   }
 }

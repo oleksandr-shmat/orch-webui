@@ -6,7 +6,8 @@ import Textarea from 'primevue/textarea';
 import Select from 'primevue/select';
 import DetailPanel from './DetailPanel.vue';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { api, type GoalRecord, type GoalStatus, type GoalProgressReport, type TaskRecord, type AgentRecord } from '@/api/client';
+import { useAgents } from '@/composables/useAgents';
+import { api, type GoalRecord, type GoalStatus, type GoalProgressReport, type TaskRecord } from '@/api/client';
 import { status as color } from '@/theme/tokens';
 import type { StatusVisual } from '@/theme/status';
 
@@ -22,11 +23,11 @@ const emit = defineEmits<{
 }>();
 
 const store = useWorkspaceStore();
+const { getAgentOptionsWithFallback, loadAgents } = useAgents(() => store.activeWorkspace?.id);
 
 const goal = ref<GoalRecord | null>(null);
 const progress = ref<GoalProgressReport | null>(null);
 const tasks = ref<TaskRecord[]>([]);
-const agents = ref<AgentRecord[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const actionLoading = ref<string | null>(null);
@@ -36,6 +37,8 @@ const isEditing = ref(false);
 const editTitle = ref('');
 const editDescription = ref('');
 const editAssignee = ref('');
+
+const displayAgentOptions = computed(() => getAgentOptionsWithFallback(editAssignee.value));
 
 const goalStatusVisualMap: Record<GoalStatus, StatusVisual> = {
   active: { glyph: '●', color: color.info, label: 'Active' },
@@ -63,17 +66,16 @@ async function loadData() {
   errorMessage.value = null;
 
   try {
-    const [fetchedGoal, fetchedProgress, fetchedTasks, fetchedAgents] = await Promise.all([
+    const [fetchedGoal, fetchedProgress, fetchedTasks] = await Promise.all([
       api.getGoal(wsId, props.goalId),
       api.getGoalProgress(wsId, props.goalId).catch(() => null),
       api.getGoalTasks(wsId, props.goalId).catch(() => []),
-      api.getAgents(wsId).catch(() => []),
+      loadAgents(),
     ]);
 
     goal.value = fetchedGoal;
     progress.value = fetchedProgress;
     tasks.value = fetchedTasks;
-    agents.value = fetchedAgents;
     resetEditForm(fetchedGoal);
   } catch (err: any) {
     errorMessage.value = err.message || 'Failed to load goal details';
@@ -227,11 +229,10 @@ async function handleDelete() {
           <label class="ow-eyebrow">Lead Assignee</label>
           <Select
             v-model="editAssignee"
-            :options="agents"
-            optionLabel="name"
-            optionValue="id"
+            :options="displayAgentOptions"
+            optionLabel="label"
+            optionValue="value"
             placeholder="Unassigned"
-            showClear
             class="form-select mono"
           />
         </div>

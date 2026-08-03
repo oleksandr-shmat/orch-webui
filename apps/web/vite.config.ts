@@ -10,7 +10,10 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3000,
+    // Non-default port — 3000/5173 are used by countless other local projects; this pair
+    // (4317 server / 4318 web) is dedicated to orch-webui to avoid collisions.
+    port: 4318,
+    strictPort: true,
     proxy: {
       '/api': {
         // Must match apps/server's default PORT (see apps/server/src/server.ts). If you run the
