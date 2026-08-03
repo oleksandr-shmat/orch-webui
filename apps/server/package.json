@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:sse": "tsx test/sse-smoke-test.ts"
+    "test:sse": "tsx test/sse-smoke-test.ts",
+    "test:crud": "tsx test/crud-live-test.ts"
   },
   "dependencies": {
     "@oxgeneral/orch": "^1.0.34",
