@@ -64,6 +64,15 @@ async function getContainer(
  * public `Container.orchestrator`; this layer only validates the workspace and maps errors to HTTP.
  */
 export default async function orchestratorRoute(app: FastifyInstance): Promise<void> {
+  app.get<{ Params: WorkspaceParams }>('/api/workspaces/:id/orchestrator/watch/status', async (request, reply) => {
+    const { id } = request.params;
+    if (!workspaceManager.get(id)) {
+      return reply.code(404).send({ error: `Unknown workspace: ${id}` });
+    }
+
+    return { watching: workspaceManager.getActiveContainer(id)?.orchestrator.isOwner ?? false };
+  });
+
   app.post<{ Params: WorkspaceParams }>('/api/workspaces/:id/orchestrator/watch/start', async (request, reply) => {
     const container = await getContainer(request, reply);
     if (!container) return reply;
