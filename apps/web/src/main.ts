@@ -18,7 +18,7 @@ const app = createApp(App);
 
 app.use(createPinia());
 app.use(VueQueryPlugin);
-app.use(PrimeVue, orchThemeOptions);
+app.use(PrimeVue, { theme: orchThemeOptions });
 app.use(router);
 
 app.mount('#app');
