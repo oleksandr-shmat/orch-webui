@@ -2,6 +2,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import eventsRoute from './routes/events.js';
 import crudRoutes from './routes/crud.js';
 import orchestratorRoute from './routes/orchestrator.js';
+import registryRoutes from './routes/registry.js';
+import { registryStore } from './registry/RegistryStore.js';
 import { workspaceManager } from './workspace/WorkspaceManager.js';
 
 // Never bind wider than loopback — this server can spawn real agent CLI processes on the
@@ -11,6 +13,7 @@ const PORT = Number(process.env.PORT ?? 4317);
 
 export async function buildApp(): Promise<FastifyInstance> {
   await workspaceManager.load();
+  await registryStore.load();
 
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
 
@@ -37,6 +40,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(eventsRoute);
   await app.register(crudRoutes);
   await app.register(orchestratorRoute);
+  await app.register(registryRoutes);
 
   return app;
 }
