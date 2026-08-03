@@ -21,8 +21,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   const isInitialized = computed(() => {
     const ws = activeWorkspace.value;
-    if (!ws) return true; // default until loaded
-    return ws.isInitialized !== false;
+    if (!ws) return true;
+    if (ws.isInitialized === undefined) return false;
+    return ws.isInitialized;
   });
 
   async function fetchWorkspaces() {
@@ -73,10 +74,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (!ws) return;
     isInitializing.value = true;
     try {
-      await api.initWorkspace(ws.id);
-      ws.isInitialized = true;
+      const result = await api.initWorkspace(ws.id);
+      if (result.workspace) {
+        const idx = workspaces.value.findIndex((w) => w.id === result.workspace!.id);
+        if (idx >= 0) workspaces.value[idx] = result.workspace;
+      }
       await fetchWorkspaces();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to initialize workspace:', err);
       throw err;
     } finally {
