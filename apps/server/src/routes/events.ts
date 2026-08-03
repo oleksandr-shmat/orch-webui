@@ -48,9 +48,12 @@ export default async function eventsRoute(app: FastifyInstance): Promise<void> {
     res.write(':ok\n\n'); // opening comment — flushes headers, gives EventSource an immediate byte
 
     const send = (event: OrchestratorEvent): void => {
-      // SSE `event:` field lets clients do `source.addEventListener(event.type, ...)`;
-      // `data:` carries the full typed payload as JSON for clients that just want onmessage.
-      res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+      // No custom `event:` field: a named SSE event only fires listeners registered via
+      // `addEventListener(name, ...)` — the browser `EventSource.onmessage` handler (what our
+      // own frontend uses, see apps/web/src/composables/useActivityStream.ts) never sees it,
+      // which is why the Activity tab stayed empty forever despite a live connection. `type`
+      // already travels inside the JSON `data:` payload, so clients recover it from there.
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
     };
 
     const unsubscribe = container.eventBus.onAny(send);
