@@ -8,10 +8,12 @@ import Textarea from 'primevue/textarea';
 
 import DetailPanelTask from '@/components/DetailPanelTask.vue';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useAgents } from '@/composables/useAgents';
 import { api, type TaskRecord } from '@/api/client';
 import { taskStatus } from '@/theme/status';
 
 const store = useWorkspaceStore();
+const { agentOptions } = useAgents(() => store.activeWorkspace?.id);
 
 const tasks = ref<TaskRecord[]>([]);
 const isLoading = ref(false);
@@ -348,10 +350,13 @@ async function handleCreateTask() {
             />
           </div>
           <div class="form-field flex-1">
-            <label class="field-label ow-eyebrow">Assignee (Agent ID)</label>
-            <InputText
+            <label class="field-label ow-eyebrow">Assignee</label>
+            <Select
               v-model="newAssignee"
-              placeholder="e.g. agt_3V1_LbH"
+              :options="agentOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="Unassigned"
               class="w-full mono p-inputtext-sm"
             />
           </div>
