@@ -6,9 +6,21 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { buildFullContainer, type Container } from '@oxgeneral/orch';
+import { buildFullContainer, type Container, type OrchestratorEvent } from '@oxgeneral/orch';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * How many recent `OrchestratorEvent`s each activated workspace keeps in memory, replayed to a
+ * newly-opened SSE connection before it starts receiving live events. `@oxgeneral/orch` has no
+ * persisted general-purpose event log (only per-run output logs via `RunService.readEvents*`,
+ * which are unrelated) — without this, the Activity tab shows nothing at all unless the viewer
+ * personally triggers a new action *while the tab happens to be open*, which is what kept making
+ * an already-fixed live feed (see events.ts) look "still broken" to anyone just opening the tab
+ * to look. This buffer starts filling the moment a workspace is activated, independent of whether
+ * any Activity tab is open, so switching to the tab later still shows what already happened.
+ */
+const EVENT_BACKLOG_LIMIT = 200;
 
 /**
  * `buildFullContainer(context: CliContext)` takes a plain object — `CliContext` itself is
@@ -53,6 +65,8 @@ interface WorkspaceEntry {
   record: WorkspaceRecord;
   container?: Container;
   containerPromise?: Promise<Container>;
+  /** Oldest-first ring buffer of the last `EVENT_BACKLOG_LIMIT` events, see constant above. */
+  recentEvents: OrchestratorEvent[];
 }
 
 interface PersistedState {
@@ -82,7 +96,7 @@ export class WorkspaceManager {
       const raw = await readFile(STATE_FILE, 'utf-8');
       const state = JSON.parse(raw) as PersistedState;
       for (const record of state.workspaces ?? []) {
-        this.entries.set(record.id, { record });
+        this.entries.set(record.id, { record, recentEvents: [] });
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
@@ -119,7 +133,7 @@ export class WorkspaceManager {
       label: label ?? projectRoot.split('/').filter(Boolean).pop() ?? projectRoot,
       addedAt: new Date().toISOString(),
     };
-    this.entries.set(record.id, { record });
+    this.entries.set(record.id, { record, recentEvents: [] });
     await this.persist();
     return record;
   }
@@ -207,6 +221,13 @@ export class WorkspaceManager {
       .then((container) => {
         entry.container = container;
         entry.containerPromise = undefined;
+        // Start recording into the backlog immediately on activation — independent of whether
+        // any SSE client is connected — so events that happen before the Activity tab is ever
+        // opened are still there to replay once it is. See EVENT_BACKLOG_LIMIT doc comment.
+        container.eventBus.onAny((event) => {
+          entry.recentEvents.push(event);
+          if (entry.recentEvents.length > EVENT_BACKLOG_LIMIT) entry.recentEvents.shift();
+        });
         return container;
       })
       .catch((err) => {
@@ -215,6 +236,12 @@ export class WorkspaceManager {
       });
 
     return entry.containerPromise;
+  }
+
+  /** Oldest-first snapshot of recent events for this workspace, for replay to a newly-opened
+   * SSE connection. Empty if the workspace was never activated or nothing has happened yet. */
+  getRecentEvents(id: string): OrchestratorEvent[] {
+    return this.entries.get(id)?.recentEvents ?? [];
   }
 
   /** Return an already-built container without triggering a build (used by routes that need

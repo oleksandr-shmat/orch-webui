@@ -20,7 +20,7 @@
     "test:watch-status": "tsx test/watch-status-regression.ts"
   },
   "dependencies": {
-    "@oxgeneral/orch": "^1.0.34",
+    "@oxgeneral/orch": "file:../../../ORCH",
     "fastify": "^5.0.0"
   },
   "devDependencies": {

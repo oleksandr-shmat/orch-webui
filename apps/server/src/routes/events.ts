@@ -56,6 +56,14 @@ export default async function eventsRoute(app: FastifyInstance): Promise<void> {
       res.write(`data: ${JSON.stringify(event)}\n\n`);
     };
 
+    // Replay whatever happened since this workspace was activated — WorkspaceManager has been
+    // recording into a ring buffer since activate() regardless of whether any tab was open, so a
+    // viewer opening Activity after the fact still sees what already happened instead of a blank
+    // feed until the next new event (see WorkspaceManager's EVENT_BACKLOG_LIMIT doc comment).
+    for (const event of workspaceManager.getRecentEvents(id)) {
+      send(event);
+    }
+
     const unsubscribe = container.eventBus.onAny(send);
 
     // Keep intermediary proxies/load balancers from timing out an idle SSE connection.
