@@ -71,6 +71,23 @@ export class RegistryStore {
     return structuredClone(link);
   }
 
+  async updateLinkSnapshot(id: string, snapshot: RegistryLink['lastSyncedSnapshot']): Promise<RegistryLink | undefined> {
+    const link = this.links.find((item) => item.id === id);
+    if (!link) return undefined;
+    link.lastSyncedSnapshot = structuredClone(snapshot);
+    link.lastSyncedAt = new Date().toISOString();
+    await this.persistLinks();
+    return structuredClone(link);
+  }
+
+  async replaceTargetEntityId(id: string, targetEntityId: string): Promise<RegistryLink | undefined> {
+    const link = this.links.find((item) => item.id === id);
+    if (!link) return undefined;
+    link.targetEntityId = targetEntityId;
+    await this.persistLinks();
+    return structuredClone(link);
+  }
+
   getSettings(): RegistrySettings {
     return structuredClone(this.settings);
   }
