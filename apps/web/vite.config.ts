@@ -13,7 +13,10 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3001',
+        // Must match apps/server's default PORT (see apps/server/src/server.ts). If you run the
+        // server with a non-default PORT, set the same value here (vite.config.ts is not itself
+        // affected by a PORT env var — its dev server port is fixed above).
+        target: 'http://127.0.0.1:4317',
         changeOrigin: true
       }
     }
