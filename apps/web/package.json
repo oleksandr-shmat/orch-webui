@@ -9,7 +9,8 @@
     "typecheck": "vue-tsc --noEmit",
     "test:vite-proxy": "tsx test/vite-proxy-port-test.ts",
     "test:theme-config": "tsx test/theme-primevue-config.regression-1.test.ts",
-    "test:theme-css-vars": "tsx test/theme-css-vars.regression-1.test.ts"
+    "test:theme-css-vars": "tsx test/theme-css-vars.regression-1.test.ts",
+    "test:watch-status-sync": "tsx test/watch-status-sync.regression-1.test.ts && tsx test/watch-status-sync.regression-2.test.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.1.0",

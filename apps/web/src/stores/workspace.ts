@@ -4,15 +4,23 @@ import { api, type WorkspaceRecord } from '@/api/client';
 
 const STORAGE_KEY = 'orch_active_workspace_id';
 
+function readStoredWorkspaceId(): string | null {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export const useWorkspaceStore = defineStore('workspace', () => {
   const workspaces = ref<WorkspaceRecord[]>([]);
-  const activeWorkspaceId = ref<string | null>(localStorage.getItem(STORAGE_KEY));
+  const activeWorkspaceId = ref<string | null>(readStoredWorkspaceId());
   const isLoading = ref(false);
   const isInitializing = ref(false);
   const isWatchRunning = ref(false);
   const isWatchLoading = ref(false);
   const lockError = ref<string | null>(null);
   const isBrowseModalOpen = ref(false);
+  let watchStatusSyncGeneration = 0;
 
   const activeWorkspace = computed(() => {
     if (!activeWorkspaceId.value) return workspaces.value[0] || null;
@@ -26,32 +34,68 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return ws.isInitialized;
   });
 
+  function resolveActiveWorkspaceId(list: WorkspaceRecord[]): string | null {
+    if (list.length === 0) return null;
+    const stored = activeWorkspaceId.value;
+    if (stored && list.some((w) => w.id === stored)) return stored;
+    return list[0].id;
+  }
+
   async function fetchWorkspaces() {
     isLoading.value = true;
     try {
       const list = await api.getWorkspaces();
       workspaces.value = list;
-      
-      // Auto select first workspace if stored active ID is invalid or null
-      if (list.length > 0) {
-        if (!activeWorkspaceId.value || !list.some((w) => w.id === activeWorkspaceId.value)) {
-          selectWorkspace(list[0].id);
-        }
-      } else {
+
+      const resolvedId = resolveActiveWorkspaceId(list);
+      if (!resolvedId) {
         activeWorkspaceId.value = null;
+        isWatchRunning.value = false;
+        return;
       }
+
+      if (activeWorkspaceId.value !== resolvedId) {
+        activeWorkspaceId.value = resolvedId;
+        localStorage.setItem(STORAGE_KEY, resolvedId);
+      }
+      lockError.value = null;
+      watchStatusSyncGeneration++;
+      isWatchRunning.value = false;
+      await syncWatchStatus(resolvedId);
     } catch (err) {
       console.error('Failed to fetch workspaces:', err);
+      if (activeWorkspaceId.value) {
+        await syncWatchStatus(activeWorkspaceId.value);
+      }
     } finally {
       isLoading.value = false;
     }
   }
 
+  async function syncWatchStatus(workspaceId: string) {
+    const generation = ++watchStatusSyncGeneration;
+    try {
+      const res = await api.getWatchStatus(workspaceId);
+      if (generation !== watchStatusSyncGeneration) return;
+      if (activeWorkspaceId.value === workspaceId) {
+        isWatchRunning.value = res.watching;
+      }
+    } catch (err) {
+      console.error('Failed to sync watch status:', err);
+      if (generation !== watchStatusSyncGeneration) return;
+      if (activeWorkspaceId.value === workspaceId) {
+        isWatchRunning.value = false;
+      }
+    }
+  }
+
   function selectWorkspace(id: string) {
+    watchStatusSyncGeneration++;
     activeWorkspaceId.value = id;
     localStorage.setItem(STORAGE_KEY, id);
     isWatchRunning.value = false;
     lockError.value = null;
+    void syncWatchStatus(id);
   }
 
   async function registerAndSelect(projectRoot: string, label?: string) {
@@ -140,6 +184,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function closeBrowseModal() {
     isBrowseModalOpen.value = false;
+  }
+
+  // Page refresh: reconcile pill before workspace list fetch completes.
+  if (activeWorkspaceId.value) {
+    void syncWatchStatus(activeWorkspaceId.value);
   }
 
   return {
