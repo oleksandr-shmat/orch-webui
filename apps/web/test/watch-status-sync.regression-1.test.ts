@@ -33,6 +33,10 @@ if (!/void syncWatchStatus\(activeWorkspaceId\.value\)/.test(storeTs)) {
   throw new Error('fetchWorkspaces must sync watch when stored active workspace is still valid (refresh path)');
 }
 
+if (!/await syncWatchStatus\(resolvedId\)/.test(storeTs)) {
+  throw new Error('fetchWorkspaces must await syncWatchStatus after resolving active workspace on refresh');
+}
+
 if (!/void syncWatchStatus\(id\)/.test(storeTs)) {
   throw new Error('selectWorkspace must reconcile watch state via syncWatchStatus');
 }

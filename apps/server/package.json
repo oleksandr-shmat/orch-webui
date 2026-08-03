@@ -16,7 +16,8 @@
     "test:registry": "tsx test/registry-live-test.ts",
     "test:team-registry": "tsx test/team-registry-live-test.ts",
     "test:checklist": "tsx test/checklist-ah-live-test.ts",
-    "test:init-body": "tsx test/init-empty-body-regression.ts"
+    "test:init-body": "tsx test/init-empty-body-regression.ts",
+    "test:watch-status": "tsx test/watch-status-regression.ts"
   },
   "dependencies": {
     "@oxgeneral/orch": "^1.0.34",
