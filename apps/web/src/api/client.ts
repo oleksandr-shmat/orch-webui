@@ -186,20 +186,8 @@ export const api = {
 
   async browseDirectory(path?: string): Promise<BrowseDirectoryResponse> {
     const url = path ? `/api/fs/browse?path=${encodeURIComponent(path)}` : '/api/fs/browse';
-    try {
-      const res = await fetch(url);
-      if (res.status === 404) {
-        const altRes = await fetch(path ? `/api/workspaces/browse?path=${encodeURIComponent(path)}` : '/api/workspaces/browse');
-        return handleResponse<BrowseDirectoryResponse>(altRes);
-      }
-      return handleResponse<BrowseDirectoryResponse>(res);
-    } catch (err) {
-      return {
-        currentPath: path || '~',
-        parentPath: path && path !== '/' ? path.substring(0, path.lastIndexOf('/')) || '/' : null,
-        items: [],
-      };
-    }
+    const res = await fetch(url);
+    return handleResponse<BrowseDirectoryResponse>(res);
   },
 
   async startWatch(workspaceId: string): Promise<OrchestratorWatchResponse> {

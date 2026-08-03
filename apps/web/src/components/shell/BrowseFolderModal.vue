@@ -21,10 +21,17 @@ async function loadDirectory(path: string) {
   errorMessage.value = null;
   try {
     const data = await api.browseDirectory(path);
-    currentPath.value = data.currentPath;
-    customPath.value = data.currentPath;
-    parentPath.value = data.parentPath;
-    items.value = data.items;
+    const resolvedPath = data.currentPath || (data as any).path || path;
+    currentPath.value = resolvedPath;
+    customPath.value = resolvedPath;
+    parentPath.value = data.parentPath !== undefined ? data.parentPath : ((data as any).parent ?? null);
+    const rawItems = data.items || (data as any).entries || [];
+    items.value = rawItems.map((item: any) => ({
+      name: item.name,
+      path: item.path,
+      isDir: item.isDir !== undefined ? item.isDir : true,
+      hasOrchestry: item.hasOrchestry,
+    }));
   } catch (err: any) {
     errorMessage.value = err.message || 'Failed to browse directory';
   } finally {
