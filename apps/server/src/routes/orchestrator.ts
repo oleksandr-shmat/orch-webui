@@ -73,6 +73,18 @@ export default async function orchestratorRoute(app: FastifyInstance): Promise<v
     return { watching: workspaceManager.getActiveContainer(id)?.orchestrator.isOwner ?? false };
   });
 
+  app.get<{ Params: WorkspaceParams }>('/api/workspaces/:id/orchestrator/state', async (request, reply) => {
+    const container = await getContainer(request, reply);
+    if (!container) return reply;
+
+    try {
+      const { running, stats } = await container.stateStore.read();
+      return { running, stats };
+    } catch (error) {
+      return sendOrchestratorError(request, reply, error);
+    }
+  });
+
   app.post<{ Params: WorkspaceParams }>('/api/workspaces/:id/orchestrator/watch/start', async (request, reply) => {
     const container = await getContainer(request, reply);
     if (!container) return reply;
