@@ -67,6 +67,43 @@ export interface AgentRecord {
   autonomous?: boolean;
   skills?: string[];
   created_at?: string;
+  /** Thin pass-through of agentService.list()'s AgentStats — already returned by GET /agents. */
+  stats?: {
+    total_runtime_ms: number;
+    tokens_used?: number;
+  };
+}
+
+/** Mirrors `@oxgeneral/orch`'s `TokenUsage` (src/domain/run.ts). */
+export interface TokenUsage {
+  input: number;
+  output: number;
+  reasoning: number;
+  total: number;
+  cache_read: number;
+  cache_write: number;
+}
+
+/** Mirrors `@oxgeneral/orch`'s `RunningEntry` (src/domain/state.ts) — one entry per in-flight run. */
+export interface RunningEntry {
+  run_id: string;
+  agent_id: string;
+  task_id: string;
+  pid: number;
+  started_at: string;
+  last_event_at: string;
+}
+
+/** Response shape of GET /api/workspaces/:id/orchestrator/state — mirrors `OrchestratorState`'s `running`/`stats`. */
+export interface OrchestratorStateSummary {
+  running: Record<string, RunningEntry>;
+  stats: {
+    total_runs: number;
+    total_tasks_completed: number;
+    total_tasks_failed: number;
+    total_tokens: TokenUsage;
+    total_runtime_ms: number;
+  };
 }
 
 export interface GoalRecord {
@@ -213,6 +250,13 @@ export const api = {
       `/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/watch/status`,
     );
     return handleResponse<OrchestratorWatchResponse>(res);
+  },
+
+  async getOrchestratorState(workspaceId: string): Promise<OrchestratorStateSummary> {
+    const res = await fetch(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/orchestrator/state`,
+    );
+    return handleResponse<OrchestratorStateSummary>(res);
   },
 
   async startWatch(workspaceId: string): Promise<OrchestratorWatchResponse> {

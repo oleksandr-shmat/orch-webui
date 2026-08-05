@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 
@@ -9,13 +9,16 @@ import ConfirmRecreateModal from '@/components/ConfirmRecreateModal.vue';
 
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useRegistry } from '@/composables/useRegistry';
-import { api, type AgentRecord } from '@/api/client';
+import { useActivityStream } from '@/composables/useActivityStream';
+import { api, type AgentRecord, type OrchestratorStateSummary } from '@/api/client';
 import { agentStatus } from '@/theme/status';
 
 const store = useWorkspaceStore();
 const registry = useRegistry();
+const activity = useActivityStream();
 
 const agents = ref<AgentRecord[]>([]);
+const orchestratorState = ref<OrchestratorStateSummary | null>(null);
 const isLoading = ref(false);
 const searchQuery = ref('');
 
@@ -27,13 +30,21 @@ const isLinkModalOpen = ref(false);
 const isRecreateModalOpen = ref(false);
 const targetRecreateAgent = ref<{ linkId: string; name: string } | null>(null);
 
+// Ticks once a second so running-time badges stay live without a dedicated polling timer.
+const nowTick = ref(Date.now());
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+// 5s poll fallback — only fires while SSE is down (see `activity.isConnected`).
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
 async function loadData() {
-  if (!store.activeWorkspace?.id) return;
+  const wsId = store.activeWorkspace?.id;
+  if (!wsId) return;
   isLoading.value = true;
   try {
     const [fetchedAgents] = await Promise.all([
-      api.getAgents(store.activeWorkspace.id),
-      registry.loadRegistry(store.activeWorkspace.id),
+      api.getAgents(wsId),
+      registry.loadRegistry(wsId),
     ]);
     agents.value = fetchedAgents;
   } catch (err) {
@@ -41,20 +52,123 @@ async function loadData() {
   } finally {
     isLoading.value = false;
   }
+
+  // Fetched separately so a workspace that isn't watching (409) doesn't block the agent list.
+  try {
+    orchestratorState.value = await api.getOrchestratorState(wsId);
+  } catch (err) {
+    console.error('Failed to load orchestrator state:', err);
+  }
+}
+
+/** agent:output / agent:file_changed stream constantly during a run — everything else is a
+ *  meaningful status/stat change worth refreshing for. */
+function isRelevantTopic(topic: string): boolean {
+  if (topic.startsWith('agent:')) return topic !== 'agent:output' && topic !== 'agent:file_changed';
+  return topic.startsWith('task:');
+}
+
+function scheduleRefresh() {
+  if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+  refreshDebounceTimer = setTimeout(() => {
+    refreshDebounceTimer = null;
+    loadData();
+  }, 300);
 }
 
 watch(
   () => store.activeWorkspace?.id,
   (id) => {
-    if (id) loadData();
+    if (id) {
+      loadData();
+      activity.connect(id);
+    } else {
+      activity.disconnect();
+      orchestratorState.value = null;
+    }
   },
   { immediate: true }
+);
+
+watch(
+  () => activity.events.value[0],
+  (evt) => {
+    if (evt && isRelevantTopic(evt.topic)) scheduleRefresh();
+  }
 );
 
 onMounted(() => {
   if (store.activeWorkspace?.id) {
     loadData();
   }
+  tickTimer = setInterval(() => {
+    nowTick.value = Date.now();
+  }, 1000);
+  pollTimer = setInterval(() => {
+    if (!activity.isConnected.value && store.activeWorkspace?.id) {
+      loadData();
+    }
+  }, 5000);
+});
+
+onUnmounted(() => {
+  if (tickTimer) clearInterval(tickTimer);
+  if (pollTimer) clearInterval(pollTimer);
+  if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+});
+
+/** Mirrors `formatDuration` in ORCH's `src/cli/output.ts` — same units/format across CLI/TUI/web. */
+function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (minutes < 60) return `${minutes}:${String(secs).padStart(2, '0')}`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h${String(mins).padStart(2, '0')}m`;
+}
+
+/** Mirrors `formatTokens` in ORCH's `src/cli/output.ts`. */
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+// agent_id -> live elapsed-time label, for agents currently in `state.running` (TUI AgentList.tsx
+// pattern: Date.now() - new Date(runningEntry.started_at).getTime()). Recomputes every `nowTick`.
+const runningElapsedLabels = computed<Record<string, string>>(() => {
+  void nowTick.value;
+  const labels: Record<string, string> = {};
+  const running = orchestratorState.value?.running;
+  if (!running) return labels;
+  for (const entry of Object.values(running)) {
+    const ms = Date.now() - new Date(entry.started_at).getTime();
+    labels[entry.agent_id] = formatDuration(Math.max(0, ms));
+  }
+  return labels;
+});
+
+interface ConnectorBreakdown {
+  adapter: string;
+  agentCount: number;
+  tokens: number;
+  runtimeMs: number;
+}
+
+// Pure client-side aggregation of the already-loaded agents list, grouped by adapter — no new
+// backend endpoint needed since agent.stats (tokens_used/total_runtime_ms) already carries this.
+const connectorBreakdown = computed<ConnectorBreakdown[]>(() => {
+  const map = new Map<string, ConnectorBreakdown>();
+  for (const ag of agents.value) {
+    const key = ag.adapter || 'unknown';
+    const entry = map.get(key) ?? { adapter: key, agentCount: 0, tokens: 0, runtimeMs: 0 };
+    entry.agentCount += 1;
+    entry.tokens += ag.stats?.tokens_used ?? 0;
+    entry.runtimeMs += ag.stats?.total_runtime_ms ?? 0;
+    map.set(key, entry);
+  }
+  return [...map.values()].sort((a, b) => b.runtimeMs - a.runtimeMs);
 });
 
 function openAgentDetail(agentId: string) {
@@ -118,6 +232,45 @@ async function handleSyncAllOutdated() {
       </div>
     </div>
 
+    <!-- Global token/runtime summary + per-connector breakdown (goal items 3-4) -->
+    <div v-if="orchestratorState" class="stats-strip mono">
+      <div class="stat-chip">
+        <span class="stat-label">Total tokens</span>
+        <span class="stat-value">{{ formatTokens(orchestratorState.stats.total_tokens.total) }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label">Total runtime</span>
+        <span class="stat-value">{{ formatDuration(orchestratorState.stats.total_runtime_ms) }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label">Runs</span>
+        <span class="stat-value">{{ orchestratorState.stats.total_runs }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label">Completed / Failed</span>
+        <span class="stat-value">
+          <span class="ok">{{ orchestratorState.stats.total_tasks_completed }}</span>
+          /
+          <span class="bad">{{ orchestratorState.stats.total_tasks_failed }}</span>
+        </span>
+      </div>
+
+      <div v-if="connectorBreakdown.length > 0" class="connector-list">
+        <span
+          v-for="c in connectorBreakdown"
+          :key="c.adapter"
+          class="connector-chip"
+          :title="`${c.agentCount} agent(s) · ${formatTokens(c.tokens)} tokens · ${formatDuration(c.runtimeMs)}`"
+        >
+          <span class="connector-adapter">{{ c.adapter }}</span>
+          <span class="connector-sep">·</span>
+          <span class="connector-tokens">{{ formatTokens(c.tokens) }} tok</span>
+          <span class="connector-sep">·</span>
+          <span class="connector-runtime">{{ formatDuration(c.runtimeMs) }}</span>
+        </span>
+      </div>
+    </div>
+
     <!-- Filter Bar -->
     <div class="filter-bar">
       <span class="p-input-icon-left search-wrap">
@@ -167,6 +320,15 @@ async function handleSyncAllOutdated() {
               {{ agentStatus[ag.status]?.glyph }} {{ agentStatus[ag.status]?.label }}
             </span>
 
+            <!-- Running-time badge: elapsed since state.running[*].started_at, TUI AgentList.tsx pattern -->
+            <span
+              v-if="ag.status === 'running' && runningElapsedLabels[ag.id]"
+              class="running-pill mono"
+              title="Elapsed time since this run started"
+            >
+              ⏱ {{ runningElapsedLabels[ag.id] }}
+            </span>
+
             <!-- Staleness Badge if Linked -->
             <template v-if="registry.getLinkForAgent(ag.id)">
               <span
@@ -193,6 +355,20 @@ async function handleSyncAllOutdated() {
           <span class="meta-badge adapter">{{ ag.adapter }}</span>
           <span v-if="ag.model" class="meta-badge model">{{ ag.model }}</span>
           <span v-if="ag.effort" class="meta-badge effort">{{ ag.effort }}</span>
+          <span
+            v-if="ag.stats?.tokens_used !== undefined"
+            class="meta-badge tokens"
+            :title="`${ag.stats.tokens_used} tokens used`"
+          >
+            {{ formatTokens(ag.stats.tokens_used) }} tok
+          </span>
+          <span
+            v-if="ag.stats?.total_runtime_ms"
+            class="meta-badge runtime"
+            title="Cumulative runtime across all runs"
+          >
+            {{ formatDuration(ag.stats.total_runtime_ms) }}
+          </span>
         </div>
 
         <!-- Skills list -->
@@ -289,6 +465,76 @@ async function handleSyncAllOutdated() {
 
 .view-subtitle {
   color: var(--p-surface-400);
+}
+
+.stats-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  background: var(--p-surface-900);
+  border: 1px solid var(--p-surface-800);
+  border-radius: var(--p-radius-sm, 2px);
+  padding: 10px 14px;
+}
+
+.stat-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 14px;
+  border-right: 1px solid var(--p-surface-800);
+}
+
+.stat-chip:last-of-type {
+  border-right: none;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: var(--p-surface-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-value {
+  font-size: 13px;
+  color: var(--p-surface-0);
+}
+
+.stat-value .ok {
+  color: var(--p-status-success, #5b9a6f);
+}
+
+.stat-value .bad {
+  color: var(--p-status-danger, #b45252);
+}
+
+.connector-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.connector-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: var(--p-surface-950);
+  border: 1px solid var(--p-surface-800);
+  color: var(--p-surface-300);
+}
+
+.connector-adapter {
+  color: var(--p-signal-400, #5fb3b3);
+}
+
+.connector-sep {
+  color: var(--p-surface-600);
 }
 
 .filter-bar {
@@ -394,6 +640,14 @@ async function handleSyncAllOutdated() {
   padding: 1px 6px;
   border-radius: 9999px;
   border: 1px solid currentColor;
+}
+
+.running-pill {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--p-signal-400, #5fb3b3);
+  color: var(--p-signal-400, #5fb3b3);
 }
 
 .staleness-pill {
