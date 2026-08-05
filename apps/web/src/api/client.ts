@@ -391,6 +391,18 @@ export const api = {
     return handleResponse<GoalRecord>(res);
   },
 
+  async createGoal(
+    workspaceId: string,
+    data: { title: string; description?: string; assignee?: string },
+  ): Promise<GoalRecord> {
+    const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/goals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<GoalRecord>(res);
+  },
+
   async updateGoal(workspaceId: string, goalId: string, data: Partial<GoalRecord>): Promise<GoalRecord> {
     const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/goals/${encodeURIComponent(goalId)}`, {
       method: 'PATCH',
