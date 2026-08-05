@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
@@ -9,11 +9,13 @@ import Textarea from 'primevue/textarea';
 import DetailPanelTask from '@/components/DetailPanelTask.vue';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useAgents } from '@/composables/useAgents';
+import { useActivityStream } from '@/composables/useActivityStream';
 import { api, type TaskRecord } from '@/api/client';
 import { taskStatus } from '@/theme/status';
 
 const store = useWorkspaceStore();
-const { agentOptions } = useAgents(() => store.activeWorkspace?.id);
+const { agents, agentOptions } = useAgents(() => store.activeWorkspace?.id);
+const activity = useActivityStream();
 
 const tasks = ref<TaskRecord[]>([]);
 const isLoading = ref(false);
@@ -30,6 +32,12 @@ const newDescription = ref('');
 const newPriority = ref(2);
 const newAssignee = ref('');
 const isSubmittingCreate = ref(false);
+
+// 1s ticker for live running-time updates
+const nowTick = ref(Date.now());
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const statusOptions = [
   { label: 'All Statuses', value: 'all' },
@@ -59,13 +67,112 @@ async function loadTasks() {
   }
 }
 
+function scheduleRefresh() {
+  if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+  refreshDebounceTimer = setTimeout(() => {
+    refreshDebounceTimer = null;
+    loadTasks();
+  }, 300);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+function startPolling() {
+  if (!pollTimer) {
+    pollTimer = setInterval(() => {
+      if (!activity.isConnected.value && store.activeWorkspace?.id) {
+        loadTasks();
+      }
+    }, 5000);
+  }
+}
+
 watch(
   () => store.activeWorkspace?.id,
   (id) => {
-    if (id) loadTasks();
+    if (id) {
+      loadTasks();
+      activity.connect(id);
+    } else {
+      activity.disconnect();
+      tasks.value = [];
+    }
   },
   { immediate: true }
 );
+
+watch(
+  () => activity.isConnected.value,
+  (connected) => {
+    if (connected) {
+      stopPolling();
+    } else {
+      startPolling();
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => activity.events.value[0],
+  (evt) => {
+    if (!evt) return;
+    const type = evt.payload?.type || evt.topic || '';
+    if (type.startsWith('task:') || type.startsWith('agent:')) {
+      if (type !== 'agent:output' && type !== 'agent:file_changed') {
+        scheduleRefresh();
+      }
+    }
+  }
+);
+
+onMounted(() => {
+  if (store.activeWorkspace?.id) {
+    loadTasks();
+    activity.connect(store.activeWorkspace.id);
+  }
+  tickTimer = setInterval(() => {
+    nowTick.value = Date.now();
+  }, 1000);
+});
+
+onUnmounted(() => {
+  if (tickTimer) clearInterval(tickTimer);
+  stopPolling();
+  if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+});
+
+/** Mirrors `formatDuration` in ORCH's `src/cli/output.ts` — same compact format across CLI/TUI/web. */
+function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (minutes < 60) return `${minutes}:${String(secs).padStart(2, '0')}`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h${String(mins).padStart(2, '0')}m`;
+}
+
+function getTaskRunningTime(updatedAt: string): string {
+  void nowTick.value;
+  const ms = Math.max(0, nowTick.value - new Date(updatedAt).getTime());
+  return formatDuration(ms);
+}
+
+function getAssigneeDisplayName(assigneeId?: string | null): string {
+  if (!assigneeId) return '';
+  const ag = agents.value.find((a) => a.id === assigneeId);
+  if (ag && ag.name && ag.name !== ag.id) {
+    return ag.name;
+  }
+  return assigneeId;
+}
 
 const filteredTasks = computed(() => {
   return tasks.value.filter((t) => {
@@ -77,7 +184,9 @@ const filteredTasks = computed(() => {
       const matchTitle = t.title.toLowerCase().includes(q);
       const matchDesc = t.description?.toLowerCase().includes(q) ?? false;
       const matchId = t.id.toLowerCase().includes(q);
-      const matchAssignee = t.assignee?.toLowerCase().includes(q) ?? false;
+      const matchAssignee = t.assignee
+        ? t.assignee.toLowerCase().includes(q) || getAssigneeDisplayName(t.assignee).toLowerCase().includes(q)
+        : false;
       return matchTitle || matchDesc || matchId || matchAssignee;
     }
     return true;
@@ -195,18 +304,27 @@ async function handleCreateTask() {
           >
             <div class="card-top-row">
               <span class="task-id mono">#{{ t.id }}</span>
-              <span
-                class="status-pill mono"
-                :style="{ color: taskStatus[t.status]?.color, borderColor: taskStatus[t.status]?.color }"
-              >
-                {{ taskStatus[t.status]?.glyph }} {{ taskStatus[t.status]?.label }}
-              </span>
+              <div class="top-pills">
+                <span
+                  v-if="(t.status === 'in_progress' || t.status === 'retrying') && t.updated_at"
+                  class="running-pill mono"
+                  title="Elapsed time in progress"
+                >
+                  ⏱ {{ getTaskRunningTime(t.updated_at) }}
+                </span>
+                <span
+                  class="status-pill mono"
+                  :style="{ color: taskStatus[t.status]?.color, borderColor: taskStatus[t.status]?.color }"
+                >
+                  {{ taskStatus[t.status]?.glyph }} {{ taskStatus[t.status]?.label }}
+                </span>
+              </div>
             </div>
             <h3 class="task-card-title">{{ t.title }}</h3>
             <p v-if="t.description" class="task-card-desc">{{ t.description }}</p>
             <div class="card-bottom-row mono">
               <span class="p-badge">P{{ t.priority || 2 }}</span>
-              <span v-if="t.assignee" class="assignee-badge">@{{ t.assignee }}</span>
+              <span v-if="t.assignee" class="assignee-badge" :title="t.assignee">@{{ getAssigneeDisplayName(t.assignee) }}</span>
             </div>
           </div>
           <div v-if="todoTasks.length === 0" class="column-empty mono">No todo tasks</div>
@@ -228,18 +346,27 @@ async function handleCreateTask() {
           >
             <div class="card-top-row">
               <span class="task-id mono">#{{ t.id }}</span>
-              <span
-                class="status-pill mono"
-                :style="{ color: taskStatus[t.status]?.color, borderColor: taskStatus[t.status]?.color }"
-              >
-                {{ taskStatus[t.status]?.glyph }} {{ taskStatus[t.status]?.label }}
-              </span>
+              <div class="top-pills">
+                <span
+                  v-if="(t.status === 'in_progress' || t.status === 'retrying') && t.updated_at"
+                  class="running-pill mono"
+                  title="Elapsed time in progress"
+                >
+                  ⏱ {{ getTaskRunningTime(t.updated_at) }}
+                </span>
+                <span
+                  class="status-pill mono"
+                  :style="{ color: taskStatus[t.status]?.color, borderColor: taskStatus[t.status]?.color }"
+                >
+                  {{ taskStatus[t.status]?.glyph }} {{ taskStatus[t.status]?.label }}
+                </span>
+              </div>
             </div>
             <h3 class="task-card-title">{{ t.title }}</h3>
             <p v-if="t.description" class="task-card-desc">{{ t.description }}</p>
             <div class="card-bottom-row mono">
               <span class="p-badge">P{{ t.priority || 2 }}</span>
-              <span v-if="t.assignee" class="assignee-badge">@{{ t.assignee }}</span>
+              <span v-if="t.assignee" class="assignee-badge" :title="t.assignee">@{{ getAssigneeDisplayName(t.assignee) }}</span>
             </div>
           </div>
           <div v-if="inProgressTasks.length === 0" class="column-empty mono">No active tasks</div>
@@ -261,18 +388,27 @@ async function handleCreateTask() {
           >
             <div class="card-top-row">
               <span class="task-id mono">#{{ t.id }}</span>
-              <span
-                class="status-pill mono"
-                :style="{ color: taskStatus[t.status]?.color, borderColor: taskStatus[t.status]?.color }"
-              >
-                {{ taskStatus[t.status]?.glyph }} {{ taskStatus[t.status]?.label }}
-              </span>
+              <div class="top-pills">
+                <span
+                  v-if="(t.status === 'in_progress' || t.status === 'retrying') && t.updated_at"
+                  class="running-pill mono"
+                  title="Elapsed time in progress"
+                >
+                  ⏱ {{ getTaskRunningTime(t.updated_at) }}
+                </span>
+                <span
+                  class="status-pill mono"
+                  :style="{ color: taskStatus[t.status]?.color, borderColor: taskStatus[t.status]?.color }"
+                >
+                  {{ taskStatus[t.status]?.glyph }} {{ taskStatus[t.status]?.label }}
+                </span>
+              </div>
             </div>
             <h3 class="task-card-title">{{ t.title }}</h3>
             <p v-if="t.description" class="task-card-desc">{{ t.description }}</p>
             <div class="card-bottom-row mono">
               <span class="p-badge">P{{ t.priority || 2 }}</span>
-              <span v-if="t.assignee" class="assignee-badge">@{{ t.assignee }}</span>
+              <span v-if="t.assignee" class="assignee-badge" :title="t.assignee">@{{ getAssigneeDisplayName(t.assignee) }}</span>
             </div>
           </div>
           <div v-if="reviewTasks.length === 0" class="column-empty mono">No review tasks</div>
@@ -294,18 +430,27 @@ async function handleCreateTask() {
           >
             <div class="card-top-row">
               <span class="task-id mono">#{{ t.id }}</span>
-              <span
-                class="status-pill mono"
-                :style="{ color: taskStatus[t.status]?.color, borderColor: taskStatus[t.status]?.color }"
-              >
-                {{ taskStatus[t.status]?.glyph }} {{ taskStatus[t.status]?.label }}
-              </span>
+              <div class="top-pills">
+                <span
+                  v-if="(t.status === 'in_progress' || t.status === 'retrying') && t.updated_at"
+                  class="running-pill mono"
+                  title="Elapsed time in progress"
+                >
+                  ⏱ {{ getTaskRunningTime(t.updated_at) }}
+                </span>
+                <span
+                  class="status-pill mono"
+                  :style="{ color: taskStatus[t.status]?.color, borderColor: taskStatus[t.status]?.color }"
+                >
+                  {{ taskStatus[t.status]?.glyph }} {{ taskStatus[t.status]?.label }}
+                </span>
+              </div>
             </div>
             <h3 class="task-card-title">{{ t.title }}</h3>
             <p v-if="t.description" class="task-card-desc">{{ t.description }}</p>
             <div class="card-bottom-row mono">
               <span class="p-badge">P{{ t.priority || 2 }}</span>
-              <span v-if="t.assignee" class="assignee-badge">@{{ t.assignee }}</span>
+              <span v-if="t.assignee" class="assignee-badge" :title="t.assignee">@{{ getAssigneeDisplayName(t.assignee) }}</span>
             </div>
           </div>
           <div v-if="doneTasks.length === 0" class="column-empty mono">No completed tasks</div>
@@ -561,6 +706,20 @@ async function handleCreateTask() {
   align-items: center;
 }
 
+.top-pills {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.running-pill {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--p-signal-400, #5fb3b3);
+  color: var(--p-signal-400, #5fb3b3);
+}
+
 .task-id {
   color: var(--p-primary-400, #e8a33d);
   font-size: 11px;
@@ -649,3 +808,4 @@ async function handleCreateTask() {
   to { transform: rotate(360deg); }
 }
 </style>
+
