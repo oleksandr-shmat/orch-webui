@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onUnmounted } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Textarea from 'primevue/textarea';
@@ -39,6 +39,10 @@ const editPriority = ref<number>(2);
 const editAssignee = ref<string>('');
 const editLabels = ref('');
 
+// 1s ticker for live running-time display
+const nowTick = ref(Date.now());
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+
 const displayAgentOptions = computed(() => getAgentOptionsWithFallback(editAssignee.value));
 
 // Reject modal state
@@ -55,6 +59,27 @@ const priorityOptions = [
 const taskStatusVisual = computed(() => {
   if (!task.value) return undefined;
   return taskStatus[task.value.status];
+});
+
+/** Mirrors `formatDuration` in ORCH's `src/cli/output.ts` — same compact format across CLI/TUI/web. */
+function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (minutes < 60) return `${minutes}:${String(secs).padStart(2, '0')}`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h${String(mins).padStart(2, '0')}m`;
+}
+
+const runningTime = computed(() => {
+  void nowTick.value;
+  if (!task.value || (task.value.status !== 'in_progress' && task.value.status !== 'retrying') || !task.value.updated_at) {
+    return null;
+  }
+  const ms = Math.max(0, nowTick.value - new Date(task.value.updated_at).getTime());
+  return formatDuration(ms);
 });
 
 async function loadData() {
@@ -94,10 +119,19 @@ watch(
   ([vis, id]) => {
     if (vis && id) {
       loadData();
+      if (!tickTimer) {
+        tickTimer = setInterval(() => {
+          nowTick.value = Date.now();
+        }, 1000);
+      }
     } else {
       task.value = null;
       runs.value = [];
       isEditing.value = false;
+      if (tickTimer) {
+        clearInterval(tickTimer);
+        tickTimer = null;
+      }
     }
   },
   { immediate: true }
@@ -181,6 +215,10 @@ function confirmReject() {
   isRejectModalOpen.value = false;
   executeAction('reject', () => api.rejectTask(wsId, task.value!.id, rejectFeedback.value));
 }
+
+onUnmounted(() => {
+  if (tickTimer) clearInterval(tickTimer);
+});
 
 async function handleDelete() {
   if (!task.value || !store.activeWorkspace?.id) return;
@@ -303,6 +341,11 @@ async function handleDelete() {
           <div class="field-cell">
             <span class="field-label ow-eyebrow">Created</span>
             <span class="field-val mono">{{ task.created_at ? new Date(task.created_at).toLocaleString() : 'N/A' }}</span>
+          </div>
+
+          <div v-if="runningTime" class="field-cell">
+            <span class="field-label ow-eyebrow">Running Time</span>
+            <span class="field-val mono">⏱ {{ runningTime }}</span>
           </div>
         </div>
 
