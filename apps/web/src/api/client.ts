@@ -19,6 +19,13 @@ export interface BrowseDirectoryResponse {
   items: BrowseItem[];
 }
 
+export interface HealthResponse {
+  ok: boolean;
+  /** Address the server listens on; absent when it cannot be determined. */
+  host?: string;
+  port?: number;
+}
+
 export interface OrchestratorWatchResponse {
   watching: boolean;
   alreadyWatching?: boolean;
@@ -258,6 +265,11 @@ export const api = {
     const url = path ? `/api/fs/browse?path=${encodeURIComponent(path)}` : '/api/fs/browse';
     const res = await fetch(url);
     return handleResponse<BrowseDirectoryResponse>(res);
+  },
+
+  async getHealth(): Promise<HealthResponse> {
+    const res = await fetch('/api/health');
+    return handleResponse<HealthResponse>(res);
   },
 
   async getWatchStatus(workspaceId: string): Promise<OrchestratorWatchResponse> {

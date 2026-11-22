@@ -1,14 +1,26 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { api } from '@/api/client';
 
 const store = useWorkspaceStore();
+const serverAddress = ref('');
+
+onMounted(async () => {
+  try {
+    const health = await api.getHealth();
+    if (health.host && health.port) serverAddress.value = `${health.host}:${health.port}`;
+  } catch {
+    // Footer address is informational; leave it blank if the server is unreachable.
+  }
+});
 </script>
 
 <template>
   <footer class="app-footer">
     <div class="footer-left mono">
-      <span class="host-badge">127.0.0.1:4317</span>
-      <span class="divider">│</span>
+      <span v-if="serverAddress" class="host-badge">{{ serverAddress }}</span>
+      <span v-if="serverAddress" class="divider">│</span>
       <span class="path-text" :title="store.activeWorkspace?.projectRoot">
         {{ store.activeWorkspace?.projectRoot || 'No workspace loaded' }}
       </span>

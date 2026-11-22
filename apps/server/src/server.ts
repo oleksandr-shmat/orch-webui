@@ -26,7 +26,13 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   registerRequestGuard(app);
 
-  app.get('/api/health', async () => ({ ok: true }));
+  // Reports the address the server actually listens on (absent until listening, e.g. in tests).
+  app.get('/api/health', async () => {
+    const address = app.server.address();
+    return address && typeof address === 'object'
+      ? { ok: true, host: address.address, port: address.port }
+      : { ok: true };
+  });
 
   app.get('/api/workspaces', async () => workspaceManager.list().map((workspace) => ({
     ...workspace,
