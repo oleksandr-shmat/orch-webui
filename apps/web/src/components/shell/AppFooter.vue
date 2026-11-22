@@ -16,7 +16,6 @@ const store = useWorkspaceStore();
 
     <div class="footer-center mono">
       <span class="legend-item"><kbd>1-5</kbd> Tabs</span>
-      <span class="legend-item"><kbd>Cmd+K</kbd> Palette</span>
     </div>
 
     <div class="footer-right mono">
