@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Major upgrades (TypeScript, Vite, ESLint, PrimeVue themes, ...) are done deliberately by hand.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       dev-tooling:
         dependency-type: development

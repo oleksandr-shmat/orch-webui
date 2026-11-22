@@ -5,7 +5,7 @@ Thanks for your interest! This is an early-stage project; small, focused PRs are
 ## Setup
 
 ```bash
-nvm use 22        # Node 20+ required
+nvm use           # reads .nvmrc; Node 22.13+ required
 npm install
 npm run dev       # server on :4317, web on :4318
 ```
@@ -21,7 +21,7 @@ npm test
 npm run build
 ```
 
-CI runs the same checks on Node 20 and 22.
+CI runs the same checks on Node 22, 24 and 26.
 
 ## Guidelines
 

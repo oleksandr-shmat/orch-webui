@@ -17,7 +17,7 @@ model — Tasks / Agents / Goals / Teams / live activity — in the browser.
 ## Stack
 
 - Monorepo, npm workspaces: `apps/server` + `apps/web`.
-- `apps/server` — Node 20+, TypeScript, Fastify. Talks to `@oxgeneral/orch` as a library.
+- `apps/server` — Node 22+, TypeScript, Fastify. Talks to `@oxgeneral/orch` as a library.
 - `apps/web` — Vue 3 + Vite + PrimeVue, `@tanstack/vue-query` for REST data, Pinia for
   live-event/session state.
 - No database. `@oxgeneral/orch` persists to YAML/JSON under `.orchestry/`; this app's own state
@@ -25,9 +25,9 @@ model — Tasks / Agents / Goals / Teams / live activity — in the browser.
 
 ## Requirements
 
-- Node.js **20+** (developed against v22.12.0).
+- Node.js **22.13+** (CI runs 22, 24 and 26; `.nvmrc` pins 24).
   ```bash
-  nvm use 22   # or: nvm use --lts
+  nvm use      # reads .nvmrc (24); any of 22.13+, 24, 26 works
   ```
 - A project folder with `.orchestry/` (run `orch init` there first) to point the UI at.
 

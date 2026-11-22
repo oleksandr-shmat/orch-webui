@@ -7,7 +7,7 @@ Ink TUI (`orch tui`) mental model — Tasks / Agents / Goals / Teams / live acti
 ## Stack
 
 - Monorepo, npm workspaces: `apps/server` + `apps/web`.
-- `apps/server`: Node 20+, TypeScript, Fastify. Depends on `@oxgeneral/orch` as a library.
+- `apps/server`: Node 22+, TypeScript, Fastify. Depends on `@oxgeneral/orch` as a library.
 - `apps/web`: Vue 3 (`<script setup>` + TS), Vite, PrimeVue, `@tanstack/vue-query` for REST data,
   Pinia for live-event/session state.
 - **No database.** ORCH persists to YAML/JSON under `.orchestry/`. This app's own state (recent
