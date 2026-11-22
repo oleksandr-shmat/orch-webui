@@ -131,13 +131,22 @@ export interface GoalProgressReport {
   progressPercent: number;
 }
 
+export interface TeamMember {
+  agent_id: string;
+  role: 'lead' | 'member' | string;
+  joined_at?: string;
+}
+
 export interface TeamRecord {
   id: string;
   name: string;
   description?: string;
+  status?: string;
   lead_agent_id: string;
-  member_agent_ids?: string[];
-  task_ids?: string[];
+  /** Members as stored by ORCH; the lead is included with role `lead`. */
+  members?: TeamMember[];
+  /** Tasks in the team's shared pool. */
+  task_pool?: string[];
   config?: {
     auto_claim?: boolean;
   };

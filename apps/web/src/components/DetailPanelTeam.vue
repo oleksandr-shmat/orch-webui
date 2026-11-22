@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { teamMemberIds, teamTaskIds } from '@/utils/team';
 import { ref, watch, computed } from 'vue';
 import Button from 'primevue/button';
 import Select from 'primevue/select';
@@ -32,13 +33,13 @@ const selectedLeadAgent = ref<string>('');
 
 const availableAgentsToJoin = computed(() => {
   if (!team.value) return allAgents.value;
-  const memberSet = new Set(team.value.member_agent_ids || []);
+  const memberSet = new Set(teamMemberIds(team.value, { includeLead: true }));
   return allAgents.value.filter((a) => !memberSet.has(a.id));
 });
 
 const availableTasksToAdd = computed(() => {
   if (!team.value) return allTasks.value;
-  const taskSet = new Set(team.value.task_ids || []);
+  const taskSet = new Set(teamTaskIds(team.value));
   return allTasks.value.filter((t) => !taskSet.has(t.id));
 });
 
@@ -235,7 +236,7 @@ async function handleDisband() {
       <!-- Member Agents -->
       <div class="members-section">
         <div class="section-title-row">
-          <span class="field-label ow-eyebrow">Member Agents ({{ team.member_agent_ids?.length || 0 }})</span>
+          <span class="field-label ow-eyebrow">Member Agents ({{ teamMemberIds(team).length }})</span>
         </div>
 
         <div class="add-row">
@@ -257,11 +258,11 @@ async function handleDisband() {
           />
         </div>
 
-        <div v-if="!team.member_agent_ids || team.member_agent_ids.length === 0" class="empty-box mono">
+        <div v-if="teamMemberIds(team).length === 0" class="empty-box mono">
           No members in this team yet.
         </div>
         <div v-else class="members-list">
-          <div v-for="agentId in team.member_agent_ids" :key="agentId" class="member-item mono">
+          <div v-for="agentId in teamMemberIds(team)" :key="agentId" class="member-item mono">
             <div class="member-info">
               <span class="member-icon">👤</span>
               <span class="member-name">{{ agentId }}</span>
@@ -280,7 +281,7 @@ async function handleDisband() {
       <!-- Assigned Tasks -->
       <div class="tasks-section">
         <div class="section-title-row">
-          <span class="field-label ow-eyebrow">Team Task Pool ({{ team.task_ids?.length || 0 }})</span>
+          <span class="field-label ow-eyebrow">Team Task Pool ({{ teamTaskIds(team).length }})</span>
         </div>
 
         <div class="add-row">
@@ -302,11 +303,11 @@ async function handleDisband() {
           />
         </div>
 
-        <div v-if="!team.task_ids || team.task_ids.length === 0" class="empty-box mono">
+        <div v-if="teamTaskIds(team).length === 0" class="empty-box mono">
           No tasks assigned to this team pool yet.
         </div>
         <div v-else class="tasks-list">
-          <div v-for="taskId in team.task_ids" :key="taskId" class="task-item mono">
+          <div v-for="taskId in teamTaskIds(team)" :key="taskId" class="task-item mono">
             <span class="task-id">#{{ taskId }}</span>
             <Button
               icon="pi pi-trash"

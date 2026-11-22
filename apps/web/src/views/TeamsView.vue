@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { teamMemberIds, teamTaskIds } from '@/utils/team';
 import { ref, watch, onMounted } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
@@ -147,21 +148,21 @@ async function handleSyncTeam(linkId: string) {
           </div>
           <div class="meta-item">
             <span class="meta-label">MEMBERS</span>
-            <span class="meta-val">{{ tm.member_agent_ids?.length || 0 }}</span>
+            <span class="meta-val">{{ teamMemberIds(tm).length }}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">TASKS</span>
-            <span class="meta-val">{{ tm.task_ids?.length || 0 }}</span>
+            <span class="meta-val">{{ teamTaskIds(tm).length }}</span>
           </div>
         </div>
 
         <!-- Members snippet -->
-        <div v-if="tm.member_agent_ids && tm.member_agent_ids.length > 0" class="members-row mono">
-          <span v-for="mId in tm.member_agent_ids.slice(0, 4)" :key="mId" class="member-chip">
+        <div v-if="teamMemberIds(tm).length > 0" class="members-row mono">
+          <span v-for="mId in teamMemberIds(tm).slice(0, 4)" :key="mId" class="member-chip">
             @{{ mId }}
           </span>
-          <span v-if="tm.member_agent_ids.length > 4" class="more-chip">
-            +{{ tm.member_agent_ids.length - 4 }} more
+          <span v-if="teamMemberIds(tm).length > 4" class="more-chip">
+            +{{ teamMemberIds(tm).length - 4 }} more
           </span>
         </div>
 
