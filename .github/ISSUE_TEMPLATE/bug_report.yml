@@ -1,0 +1,32 @@
+name: Bug report
+description: Something in the web UI or server does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "Node.js, `@oxgeneral/orch`, browser and OS"
+      placeholder: "Node 24.x, @oxgeneral/orch 1.0.35, Firefox 140, Ubuntu 24.04"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / console output
+      description: Server output or browser console errors. Remove any private paths or tokens first.
+      render: shell

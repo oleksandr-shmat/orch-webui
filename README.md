@@ -11,8 +11,10 @@ model — Tasks / Agents / Goals / Teams / live activity — in the browser.
 | Tasks | Agents |
 | --- | --- |
 | ![Tasks board](docs/screenshots/tasks.png) | ![Agents](docs/screenshots/agents.png) |
+| **Goals** | **Teams** |
+| ![Goals](docs/screenshots/goals.png) | ![Teams](docs/screenshots/teams.png) |
 
-![Goals](docs/screenshots/goals.png)
+![Live activity feed](docs/screenshots/activity.png)
 
 ## Features
 
