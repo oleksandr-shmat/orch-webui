@@ -16,10 +16,9 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        // Must match apps/server's default PORT (see apps/server/src/server.ts). If you run the
-        // server with a non-default PORT, set the same value here (vite.config.ts is not itself
-        // affected by a PORT env var — its dev server port is fixed above).
-        target: 'http://127.0.0.1:4317',
+        // Follows apps/server's PORT env var (default 4317, see apps/server/src/server.ts), so
+        // `PORT=5000 npm run dev` points both processes at the same port.
+        target: `http://127.0.0.1:${process.env.PORT ?? 4317}`,
         changeOrigin: true
       }
     }

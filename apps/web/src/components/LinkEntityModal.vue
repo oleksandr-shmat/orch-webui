@@ -6,13 +6,11 @@ import Select from 'primevue/select';
 import Checkbox from 'primevue/checkbox';
 import InputText from 'primevue/inputtext';
 
-import {
-  api,
+import { api,
   type WorkspaceRecord,
   type AgentRecord,
   type TeamRecord,
-  type RegistryLinkRecord,
-} from '@/api/client';
+  type RegistryLinkRecord, getErrorMessage, ApiError } from '@/api/client';
 
 const props = defineProps<{
   visible: boolean;
@@ -142,8 +140,8 @@ async function handleLink() {
 
     emit('linked');
     emit('update:visible', false);
-  } catch (err: any) {
-    if (err.status === 409 && err.data?.requiresRename) {
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409 && err.data.requiresRename) {
       if (props.kind === 'agent') {
         collisionInfo.value = {
           sourceAgentId: err.data.sourceAgentId,
@@ -159,7 +157,7 @@ async function handleLink() {
       }
       errorMessage.value = `Name collision detected for "${err.data.sourceAgentName || err.data.sourceTeamName}". Please provide a unique rename below and click Link again.`;
     } else {
-      errorMessage.value = err.message || 'Failed to link entities';
+      errorMessage.value = getErrorMessage(err) || 'Failed to link entities';
     }
   } finally {
     isSubmitting.value = false;

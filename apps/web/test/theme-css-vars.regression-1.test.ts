@@ -1,5 +1,5 @@
 // Regression: live app must expose PrimeVue theme CSS variables on :root (.orch-dark).
-// Found by QA on 2026-08-03 (tsk_1TVIHrR) — broken when theme not passed to app.use(PrimeVue).
+// — broken when theme not passed to app.use(PrimeVue).
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

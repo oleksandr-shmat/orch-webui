@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDuration } from '@/utils/format';
 import { ref, watch, computed, onUnmounted } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
@@ -8,7 +9,7 @@ import Dialog from 'primevue/dialog';
 import DetailPanel from './DetailPanel.vue';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useAgents } from '@/composables/useAgents';
-import { api, type TaskRecord, type RunRecord } from '@/api/client';
+import { api, type TaskRecord, type RunRecord, getErrorMessage } from '@/api/client';
 import { taskStatus, runStatus } from '@/theme/status';
 
 const props = defineProps<{
@@ -61,18 +62,6 @@ const taskStatusVisual = computed(() => {
   return taskStatus[task.value.status];
 });
 
-/** Mirrors `formatDuration` in ORCH's `src/cli/output.ts` — same compact format across CLI/TUI/web. */
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (minutes < 60) return `${minutes}:${String(secs).padStart(2, '0')}`;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h${String(mins).padStart(2, '0')}m`;
-}
-
 const runningTime = computed(() => {
   void nowTick.value;
   if (!task.value || (task.value.status !== 'in_progress' && task.value.status !== 'retrying') || !task.value.updated_at) {
@@ -98,8 +87,8 @@ async function loadData() {
     task.value = fetchedTask;
     runs.value = fetchedRuns;
     resetEditForm(fetchedTask);
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to load task details';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to load task details';
   } finally {
     isLoading.value = false;
   }
@@ -164,8 +153,8 @@ async function handleSave() {
     task.value = { ...updated, assignee: editAssignee.value || undefined };
     isEditing.value = false;
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to save task updates';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to save task updates';
   } finally {
     isSaving.value = false;
   }
@@ -179,8 +168,8 @@ async function executeAction(actionName: string, actionFn: () => Promise<TaskRec
     task.value = updated;
     await loadData();
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || `Failed to perform ${actionName}`;
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || `Failed to perform ${actionName}`;
   } finally {
     actionLoading.value = null;
   }
@@ -230,8 +219,8 @@ async function handleDelete() {
     await api.deleteTask(store.activeWorkspace.id, task.value.id);
     emit('update:visible', false);
     emit('deleted');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to delete task';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to delete task';
   } finally {
     actionLoading.value = null;
   }

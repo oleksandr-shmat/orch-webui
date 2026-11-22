@@ -50,11 +50,10 @@ To run them separately instead: `npm run dev:server` / `npm run dev:web`.
 ### Custom server port
 
 ```bash
-PORT=5000 npm run dev:server
+PORT=5000 npm run dev
 ```
 
-If you change `PORT`, also update the proxy target in `apps/web/vite.config.ts` (`server.proxy['/api'].target`) —
-it is not itself affected by the `PORT` env var.
+The Vite proxy reads the same `PORT` variable, so both processes stay in sync.
 
 ## Build
 
@@ -76,21 +75,28 @@ npm run typecheck:server
 npm run typecheck:web
 ```
 
-## Tests
-
-No unified test suite yet — a handful of live scripts exercise the server against a real
-`.orchestry/` folder:
+## Lint, typecheck, tests
 
 ```bash
-npm run test:sse -w apps/server
-npm run test:crud -w apps/server
-npm run test:registry -w apps/server
-npm run test:team-registry -w apps/server
-npm run test:checklist -w apps/server
-npm run test:init-body -w apps/server
+npm run lint
+npm run typecheck
+npm test              # unit tests for both workspaces (Vitest)
 ```
 
-`apps/web` has a Playwright config (`apps/web/playwright.config.ts`) for browser tests.
+Manual live scripts that run against a real `.orchestry/` folder (may start real agents):
+
+```bash
+npm run test:live:sse -w apps/server
+npm run test:live:crud -w apps/server
+npm run test:live:registry -w apps/server
+```
+
+## Security
+
+This app is a **local-only** tool. The server listens on `127.0.0.1`, has no authentication, and
+can browse the filesystem and spawn agent processes. It rejects requests whose `Host` or
+`Origin` is not loopback (DNS-rebinding / cross-site protection). Do not expose it on a network
+interface or behind a public reverse proxy.
 
 ## Notes
 
@@ -98,4 +104,8 @@ npm run test:init-body -w apps/server
   library, not here.
 - `orch init` for a newly-picked folder is the one operation still shelled out to the real `orch`
   CLI binary; everything else goes through the library API.
-- See `AGENTS.md` for architecture details, library API surface, and known orchestrator quirks.
+- See `AGENTS.md` for architecture notes and contributor conventions.
+
+## License
+
+[MIT](LICENSE)

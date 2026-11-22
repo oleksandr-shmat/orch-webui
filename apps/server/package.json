@@ -11,21 +11,23 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:sse": "tsx test/sse-smoke-test.ts",
-    "test:crud": "tsx test/crud-live-test.ts",
-    "test:registry": "tsx test/registry-live-test.ts",
-    "test:team-registry": "tsx test/team-registry-live-test.ts",
-    "test:checklist": "tsx test/checklist-ah-live-test.ts",
-    "test:init-body": "tsx test/init-empty-body-regression.ts",
-    "test:watch-status": "tsx test/watch-status-regression.ts"
+    "test": "vitest run",
+    "test:live:sse": "tsx test/sse-smoke-test.ts",
+    "test:live:crud": "tsx test/crud-live-test.ts",
+    "test:live:registry": "tsx test/registry-live-test.ts",
+    "test:live:team-registry": "tsx test/team-registry-live-test.ts",
+    "test:live:checklist": "tsx test/checklist-ah-live-test.ts",
+    "test:live:init-body": "tsx test/init-empty-body-regression.ts",
+    "test:live:watch-status": "tsx test/watch-status-regression.ts"
   },
   "dependencies": {
-    "@oxgeneral/orch": "file:../../../ORCH",
+    "@oxgeneral/orch": "^1.0.35",
     "fastify": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.7"
   }
 }

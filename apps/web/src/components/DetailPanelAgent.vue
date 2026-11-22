@@ -7,7 +7,7 @@ import Select from 'primevue/select';
 import ToggleSwitch from 'primevue/toggleswitch';
 import DetailPanel from './DetailPanel.vue';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { api, type AgentRecord, type AgentStatus, type AgentApprovalPolicy, type RunRecord } from '@/api/client';
+import { api, type AgentRecord, type AgentStatus, type AgentApprovalPolicy, type RunRecord, getErrorMessage } from '@/api/client';
 import { agentStatus, runStatus } from '@/theme/status';
 
 const props = defineProps<{
@@ -88,8 +88,8 @@ async function loadData() {
     agent.value = fetchedAgent;
     runs.value = fetchedRuns;
     resetEditForm(fetchedAgent);
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to load agent details';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to load agent details';
   } finally {
     isLoading.value = false;
   }
@@ -140,8 +140,8 @@ async function handleSave() {
     agent.value = updated;
     isEditing.value = false;
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to save agent updates';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to save agent updates';
   } finally {
     isSaving.value = false;
   }
@@ -161,8 +161,8 @@ async function handleToggleEnable() {
 
     agent.value = updated;
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to change enable status';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to change enable status';
   } finally {
     actionLoading.value = null;
   }
@@ -178,8 +178,8 @@ async function handleToggleAutonomous(enabled: boolean) {
     const updated = await api.setAgentAutonomous(wsId, agent.value.id, enabled);
     agent.value = updated;
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to update autonomous state';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to update autonomous state';
   } finally {
     actionLoading.value = null;
   }
@@ -195,8 +195,8 @@ async function handleChangeStatus(newStatus: AgentStatus) {
     const updated = await api.setAgentStatus(wsId, agent.value.id, newStatus);
     agent.value = updated;
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to change agent status';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to change agent status';
   } finally {
     actionLoading.value = null;
   }
@@ -212,8 +212,8 @@ async function handleDelete() {
     await api.deleteAgent(store.activeWorkspace.id, agent.value.id);
     emit('update:visible', false);
     emit('deleted');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to delete agent';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to delete agent';
   } finally {
     actionLoading.value = null;
   }

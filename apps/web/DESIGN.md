@@ -1,18 +1,11 @@
 # ORCH Web UI — Design System
 
 Dark, monospace-accented, terminal-adjacent theme for the ORCH web dashboard.
-This doc is the design contract for frontend — read it before building
+This doc is the design contract for the web UI — read it before building
 any Tasks/Agents/Goals/Teams/Activity view. Token source of truth lives in
 code, not here: `apps/web/src/theme/tokens.ts` (raw values) and
 `apps/web/src/theme/preset.ts` (PrimeVue mapping). This file explains the
 *why* and the component conventions; it does not restate every hex value.
-
-> **Scope note:** this task produced theme + tokens only, no feature views.
-> `apps/web` itself (Vite/Vue/PrimeVue scaffold) does not currently exist on
-> `main` — the prior scaffold task was marked done but its branch/worktree
-> is gone and its own proof shows a failing typecheck. These theme files are
-> written to be dropped into a fresh scaffold as-is; nothing here depends on
-> app code that doesn't exist yet. Flagged to the lead separately.
 
 ## Thesis
 
@@ -59,7 +52,7 @@ review conventions).
 `package.json` on `main`): `@fontsource/ibm-plex-sans` and
 `@fontsource/ibm-plex-mono`, self-hosted (no third-party font CDN request,
 full control over `font-display`, works offline). Weights needed: 400, 500,
-600 for both families. frontend: import the specific weight CSS files in
+600 for both families. Import the specific weight CSS files in
 `main.ts`, e.g.:
 
 ```ts
@@ -181,9 +174,8 @@ quiet so this reads as *the* signature, not one of many.
   (`button`, `card`, `formField` only — the ones confirmed against
   PrimeVue's documented v4 preset shape). Deeper per-component tokens
   (DataTable density, Tag/Badge severity backgrounds, etc.) were not
-  guessed blind since there's no running app yet to verify the exact
-  generated `--p-<component>-*` variable names against. frontend:
-  when you build the first component that needs one, check devtools first,
+  guessed blind. When you build a component that needs one, check the
+  generated `--p-<component>-*` variable names in devtools first,
   then add it to `preset.ts`'s `components` block — don't inline a raw hex.
 
 ## File map

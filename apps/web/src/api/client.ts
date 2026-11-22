@@ -188,18 +188,33 @@ function postJson(url: string, body?: unknown): Promise<Response> {
   });
 }
 
+/** Error thrown for non-2xx API responses; carries the HTTP status and parsed JSON body. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- server error bodies vary per route
+    readonly data: Record<string, any>,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/** Best-effort human-readable message from an unknown thrown value. */
+export function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : '';
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    let errorData: any;
+    let errorData: Record<string, any>;
     try {
       errorData = await res.json();
     } catch {
       errorData = { error: res.statusText };
     }
-    const err = new Error(errorData.message || errorData.error || `HTTP ${res.status}`);
-    (err as any).status = res.status;
-    (err as any).data = errorData;
-    throw err;
+    throw new ApiError(errorData.message || errorData.error || `HTTP ${res.status}`, res.status, errorData);
   }
   if (res.status === 204) {
     return {} as T;

@@ -1,9 +1,16 @@
-# Orchestry state
+# ORCH runtime state
 .orchestry
+
+# Local agent/tooling notes
+.claude/
+.orch/
+graphify-out/
 
 # Node
 node_modules/
 dist/
 *.log
+
+# OS / editors
 .DS_Store
 .idea/

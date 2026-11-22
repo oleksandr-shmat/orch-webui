@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { api, type WorkspaceRecord } from '@/api/client';
+import { api, ApiError, type WorkspaceRecord } from '@/api/client';
 
 const STORAGE_KEY = 'orch_active_workspace_id';
 
@@ -105,7 +105,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       await fetchWorkspaces();
       selectWorkspace(record.id);
       return record;
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to register workspace:', err);
       throw err;
     } finally {
@@ -145,8 +145,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         const res = await api.startWatch(ws.id);
         isWatchRunning.value = res.watching;
       }
-    } catch (err: any) {
-      if (err?.data?.error === 'ORCHESTRATOR_LOCKED') {
+    } catch (err) {
+      if (err instanceof ApiError && err.data.error === 'ORCHESTRATOR_LOCKED') {
         lockError.value = err.data.message || 'Orchestrator is locked by another process';
       } else {
         console.error('Failed to toggle watch:', err);

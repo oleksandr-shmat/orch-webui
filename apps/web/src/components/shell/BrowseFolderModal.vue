@@ -4,36 +4,29 @@ import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { api, type BrowseItem } from '@/api/client';
+import { api, type BrowseItem, getErrorMessage } from '@/api/client';
 
 const store = useWorkspaceStore();
 
-const customPath = ref('~');
-const currentPath = ref('~');
+const customPath = ref('');
+const currentPath = ref('');
 const parentPath = ref<string | null>(null);
 const items = ref<BrowseItem[]>([]);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
 const errorMessage = ref<string | null>(null);
 
-async function loadDirectory(path: string) {
+async function loadDirectory(path?: string) {
   isLoading.value = true;
   errorMessage.value = null;
   try {
     const data = await api.browseDirectory(path);
-    const resolvedPath = data.currentPath || (data as any).path || path;
-    currentPath.value = resolvedPath;
-    customPath.value = resolvedPath;
-    parentPath.value = data.parentPath !== undefined ? data.parentPath : ((data as any).parent ?? null);
-    const rawItems = data.items || (data as any).entries || [];
-    items.value = rawItems.map((item: any) => ({
-      name: item.name,
-      path: item.path,
-      isDir: item.isDir !== undefined ? item.isDir : true,
-      hasOrchestry: item.hasOrchestry,
-    }));
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to browse directory';
+    currentPath.value = data.currentPath;
+    customPath.value = data.currentPath;
+    parentPath.value = data.parentPath;
+    items.value = data.items;
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to browse directory';
   } finally {
     isLoading.value = false;
   }
@@ -43,8 +36,8 @@ watch(
   () => store.isBrowseModalOpen,
   (open) => {
     if (open) {
-      const initial = store.activeWorkspace?.projectRoot || '~';
-      loadDirectory(initial);
+      // Without a path the server starts at the user's home directory.
+      loadDirectory(store.activeWorkspace?.projectRoot);
     }
   }
 );
@@ -68,8 +61,8 @@ async function handleConfirm() {
   try {
     await store.registerAndSelect(customPath.value.trim());
     store.closeBrowseModal();
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Could not register workspace folder';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Could not register workspace folder';
   } finally {
     isSubmitting.value = false;
   }

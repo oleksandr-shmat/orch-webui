@@ -1,6 +1,6 @@
 // Regression: PrimeVue theme must be passed under `theme` so --p-* CSS variables resolve.
 // Symptom: transparent dropdown backgrounds, serif/tiny fallback typography (invalid var()).
-// Found by QA on 2026-08-03 (tsk_1TVIHrR).
+//
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

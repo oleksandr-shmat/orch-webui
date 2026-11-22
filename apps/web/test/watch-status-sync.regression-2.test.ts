@@ -1,5 +1,5 @@
 // Regression: fetchWorkspaces must await watch sync and retry sync when workspace list fetch fails.
-// Found by QA on 2026-08-03 (tsk_DTGgJZ1, review redo).
+// Found by QA on 2026-08-03.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue';
 import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
-import { api, type RecreatePreviewResponse } from '@/api/client';
+import { api, type RecreatePreviewResponse, getErrorMessage } from '@/api/client';
 
 const props = defineProps<{
   visible: boolean;
@@ -27,8 +27,8 @@ async function loadPreview() {
   errorMessage.value = null;
   try {
     previewData.value = await api.previewRecreateAgent(props.targetWorkspaceId, props.linkId);
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to load recreate preview';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to load recreate preview';
   } finally {
     isLoadingPreview.value = false;
   }
@@ -50,8 +50,8 @@ async function handleConfirmRecreate() {
     await api.recreateAgent(props.targetWorkspaceId, props.linkId, true);
     emit('recreated');
     emit('update:visible', false);
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to recreate agent';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to recreate agent';
   } finally {
     isRecreating.value = false;
   }

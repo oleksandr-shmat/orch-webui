@@ -144,7 +144,7 @@ export const orchThemeOptions = {
   preset: OrchPreset,
   options: {
     prefix: 'p',
-    // Permanent — see file header. frontend: apply this class to <html>
+    // Permanent — see file header. Apply this class to <html>
     // once, in index.html or main.ts, and never render a light-mode toggle
     // without a design decision to build one.
     darkModeSelector: '.orch-dark',

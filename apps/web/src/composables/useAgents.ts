@@ -1,5 +1,5 @@
 import { ref, computed, watch, type Ref } from 'vue';
-import { api, type AgentRecord } from '@/api/client';
+import { api, type AgentRecord, getErrorMessage } from '@/api/client';
 
 export interface AgentOption {
   label: string;
@@ -23,9 +23,9 @@ export function useAgents(
     error.value = null;
     try {
       agents.value = await api.getAgents(wsId);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load agents:', err);
-      error.value = err.message || 'Failed to load agents';
+      error.value = getErrorMessage(err) || 'Failed to load agents';
       agents.value = [];
     } finally {
       isLoading.value = false;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDuration } from '@/utils/format';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
@@ -146,18 +147,6 @@ onUnmounted(() => {
   stopPolling();
   if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
 });
-
-/** Mirrors `formatDuration` in ORCH's `src/cli/output.ts` — same compact format across CLI/TUI/web. */
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (minutes < 60) return `${minutes}:${String(secs).padStart(2, '0')}`;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h${String(mins).padStart(2, '0')}m`;
-}
 
 function getTaskRunningTime(updatedAt: string): string {
   void nowTick.value;

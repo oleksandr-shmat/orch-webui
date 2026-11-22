@@ -13,7 +13,7 @@ async function runSseSmokeTest(): Promise<void> {
   console.log(`[1] Fastify server listening on ${address}`);
 
   // Register local workspace folder with existing .orchestry
-  const projectRoot = '~';
+  const projectRoot = process.env.ORCH_TEST_PROJECT_ROOT ?? process.cwd();
   const record = await workspaceManager.register(projectRoot, 'orch-webui-test');
   console.log(`[2] Workspace registered: id=${record.id}, root=${record.projectRoot}`);
 

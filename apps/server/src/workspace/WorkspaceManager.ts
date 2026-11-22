@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/pro
 import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { STATE_DIR } from '../paths.js';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -73,7 +74,6 @@ interface PersistedState {
   workspaces: WorkspaceRecord[];
 }
 
-const STATE_DIR = join(homedir(), '.orch-webui');
 const STATE_FILE = join(STATE_DIR, 'workspaces.json');
 
 /**

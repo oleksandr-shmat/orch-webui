@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { STATE_DIR } from '../paths.js';
 import type { CreateAgentInput } from '@oxgeneral/orch';
 
 export type RegistryLinkKind = 'agent' | 'team';
@@ -25,7 +25,6 @@ interface PersistedLinks {
   links: RegistryLink[];
 }
 
-const STATE_DIR = join(homedir(), '.orch-webui');
 const LINKS_FILE = join(STATE_DIR, 'links.json');
 const SETTINGS_FILE = join(STATE_DIR, 'settings.json');
 

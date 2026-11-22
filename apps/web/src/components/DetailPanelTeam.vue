@@ -4,7 +4,7 @@ import Button from 'primevue/button';
 import Select from 'primevue/select';
 import DetailPanel from './DetailPanel.vue';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { api, type TeamRecord, type AgentRecord, type TaskRecord } from '@/api/client';
+import { api, type TeamRecord, type AgentRecord, type TaskRecord, getErrorMessage } from '@/api/client';
 
 const props = defineProps<{
   visible: boolean;
@@ -59,8 +59,8 @@ async function loadData() {
     allAgents.value = fetchedAgents;
     allTasks.value = fetchedTasks;
     selectedLeadAgent.value = fetchedTeam.lead_agent_id;
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to load team details';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to load team details';
   } finally {
     isLoading.value = false;
   }
@@ -90,8 +90,8 @@ async function handleSetLead() {
     const updated = await api.setTeamLead(wsId, team.value.id, selectedLeadAgent.value);
     team.value = updated;
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to set team lead';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to set team lead';
   } finally {
     actionLoading.value = null;
   }
@@ -108,8 +108,8 @@ async function handleJoinAgent() {
     team.value = updated;
     selectedAgentToJoin.value = '';
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to add member agent to team';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to add member agent to team';
   } finally {
     actionLoading.value = null;
   }
@@ -125,8 +125,8 @@ async function handleLeaveAgent(agentId: string) {
     const updated = await api.leaveTeam(wsId, team.value.id, agentId);
     team.value = updated;
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to remove member agent from team';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to remove member agent from team';
   } finally {
     actionLoading.value = null;
   }
@@ -143,8 +143,8 @@ async function handleAddTask() {
     team.value = updated;
     selectedTaskToAdd.value = '';
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to add task to team';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to add task to team';
   } finally {
     actionLoading.value = null;
   }
@@ -160,8 +160,8 @@ async function handleRemoveTask(taskId: string) {
     const updated = await api.removeTaskFromTeam(wsId, team.value.id, taskId);
     team.value = updated;
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to remove task from team';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to remove task from team';
   } finally {
     actionLoading.value = null;
   }
@@ -177,8 +177,8 @@ async function handleDisband() {
     await api.disbandTeam(store.activeWorkspace.id, team.value.id);
     emit('update:visible', false);
     emit('deleted');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to disband team';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to disband team';
   } finally {
     actionLoading.value = null;
   }

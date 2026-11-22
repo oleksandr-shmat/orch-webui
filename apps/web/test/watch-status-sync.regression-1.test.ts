@@ -1,6 +1,6 @@
 // Regression: watching/idle pill must sync from GET .../orchestrator/watch/status on refresh and workspace switch.
 // Symptom: after page reload or switching workspaces, pill stuck on IDLE even when server has watching: true.
-// Found by QA on 2026-08-03 (tsk_DTGgJZ1).
+//
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

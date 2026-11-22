@@ -5,6 +5,7 @@ import orchestratorRoute from './routes/orchestrator.js';
 import registryRoutes from './routes/registry.js';
 import { registryStore } from './registry/RegistryStore.js';
 import { workspaceManager } from './workspace/WorkspaceManager.js';
+import { registerRequestGuard } from './security.js';
 
 // Never bind wider than loopback — this server can spawn real agent CLI processes on the
 // host and there is no auth layer in v1. See AGENTS.md safety constraint.
@@ -22,6 +23,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await registryStore.load();
 
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
+
+  registerRequestGuard(app);
 
   app.get('/api/health', async () => ({ ok: true }));
 

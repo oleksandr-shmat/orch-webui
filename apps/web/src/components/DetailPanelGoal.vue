@@ -7,7 +7,7 @@ import Select from 'primevue/select';
 import DetailPanel from './DetailPanel.vue';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useAgents } from '@/composables/useAgents';
-import { api, type GoalRecord, type GoalStatus, type GoalProgressReport, type TaskRecord } from '@/api/client';
+import { api, type GoalRecord, type GoalStatus, type GoalProgressReport, type TaskRecord, getErrorMessage } from '@/api/client';
 import { status as color } from '@/theme/tokens';
 import type { StatusVisual } from '@/theme/status';
 
@@ -77,8 +77,8 @@ async function loadData() {
     progress.value = fetchedProgress;
     tasks.value = fetchedTasks;
     resetEditForm(fetchedGoal);
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to load goal details';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to load goal details';
   } finally {
     isLoading.value = false;
   }
@@ -122,8 +122,8 @@ async function handleSave() {
     goal.value = updated;
     isEditing.value = false;
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to save goal updates';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to save goal updates';
   } finally {
     isSaving.value = false;
   }
@@ -140,8 +140,8 @@ async function handleChangeStatus(newStatus: GoalStatus) {
     goal.value = updated;
     await loadData();
     emit('updated');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to update goal status';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to update goal status';
   } finally {
     actionLoading.value = null;
   }
@@ -157,8 +157,8 @@ async function handleDelete() {
     await api.deleteGoal(store.activeWorkspace.id, goal.value.id);
     emit('update:visible', false);
     emit('deleted');
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to delete goal';
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err) || 'Failed to delete goal';
   } finally {
     actionLoading.value = null;
   }

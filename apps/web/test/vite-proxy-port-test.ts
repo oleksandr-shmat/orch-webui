@@ -13,8 +13,8 @@ const portMatch = serverSrc.match(/PORT\s*=\s*Number\(process\.env\.PORT\s*\?\?\
 if (!portMatch) throw new Error('Could not parse default PORT from server.ts');
 const defaultPort = portMatch[1];
 
-if (!viteConfig.includes(`127.0.0.1:${defaultPort}`)) {
-  throw new Error(`vite.config.ts proxy must target 127.0.0.1:${defaultPort}`);
+if (!viteConfig.includes('127.0.0.1:${process.env.PORT ?? '+defaultPort+'}')) {
+  throw new Error(`vite.config.ts proxy must target 127.0.0.1:\${process.env.PORT ?? ${defaultPort}}`);
 }
 
 console.log(`Vite proxy port regression check passed (target :${defaultPort})`);
