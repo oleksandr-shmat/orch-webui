@@ -14,6 +14,39 @@ model — Tasks / Agents / Goals / Teams / live activity — in the browser.
 
 ![Goals](docs/screenshots/goals.png)
 
+## Features
+
+- **Pick any local folder as a workspace.** A server-side folder browser lets you choose a
+  project directory, run `orch init` for it if needed, and switch between several workspaces.
+  The list of recent workspaces survives restarts.
+- **Tasks, Agents, Goals, Teams** — create, inspect and act on them from the browser, with a
+  detail panel for each. Task cards show the assignee's name, not just its ID.
+- **Live updates over SSE.** Tasks and Agents refresh in real time from the orchestrator's event
+  stream, with a polling fallback when the stream is unavailable. A separate Activity tab shows
+  the raw, filterable event feed.
+- **Running time, like the TUI.** Running tasks and agents show a live elapsed-time counter,
+  using the same compact format as `orch tui`.
+- **Token and runtime stats.** Totals for the whole workspace, per agent, and grouped per
+  connector (agent adapter such as `claude` or `codex`).
+- **Orchestrator control.** Start/stop watch mode and run all from the top bar; the UI reports a
+  lock held by another orchestrator process instead of failing silently.
+- **Agent and team registry with one-way sync.** Designate a "main" workspace and *link* its
+  agents and teams into any other project. Sync is manual (you press Sync); linked items show an
+  **outdated** badge when the source changed since the last sync. Name collisions ask for a
+  rename, and changes to create-time-only fields offer a guarded "recreate" flow.
+- **Local and safe by default.** Binds to `127.0.0.1` only and rejects non-loopback `Host`/`Origin`
+  headers (see [Security](#security)).
+
+## Roadmap
+
+Ideas that are not implemented yet:
+
+- Command palette (Cmd+K) for quick actions.
+- Toast notifications fed by orchestrator events (task done, agent error, merge conflict).
+- **Remaining rate-limit / quota per connector.** Not possible without upstream support: the ORCH
+  adapters do not capture provider rate-limit headers or usage, and the CLIs they wrap manage
+  their own credentials. Token and runtime stats (above) are the current proxy.
+
 ## Stack
 
 - Monorepo, npm workspaces: `apps/server` + `apps/web`.
