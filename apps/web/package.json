@@ -17,7 +17,7 @@
     "@fontsource/ibm-plex-mono": "^5.1.0",
     "@fontsource/ibm-plex-sans": "^5.1.0",
     "@primeuix/themes": "^1.0.0",
-    "@tanstack/vue-query": "^5.66.0",
+    "@tanstack/vue-query": "^5.108.0",
     "pinia": "^3.0.0",
     "primeicons": "^7.0.0",
     "primevue": "^4.2.5",
