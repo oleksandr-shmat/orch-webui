@@ -1,5 +1,7 @@
 # orch-webui
 
+> **Status: early / alpha.** Unofficial community project, not affiliated with the authors of ORCH. Local-only by design (see [Security](#security)).
+
 Web UI for [`@oxgeneral/orch`](https://www.npmjs.com/package/@oxgeneral/orch) (AI agent orchestrator).
 Consumes it as a library (not by scraping CLI output) and mirrors the Ink TUI (`orch tui`) mental
 model — Tasks / Agents / Goals / Teams / live activity — in the browser.

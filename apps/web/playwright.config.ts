@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './test',
   testMatch: 'ui-checklist-a.spec.ts',
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL: 'http://127.0.0.1:4318',
   },
   timeout: 60_000,
 });
