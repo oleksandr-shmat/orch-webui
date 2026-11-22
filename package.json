@@ -2,6 +2,26 @@
   "name": "orch-webui",
   "version": "0.1.0",
   "private": true,
+  "description": "Web UI for the ORCH AI agent orchestrator: tasks, agents, goals, teams and live activity in the browser.",
+  "license": "MIT",
+  "author": "Oleksandr Shmat (https://github.com/oleksandr-shmat)",
+  "homepage": "https://github.com/oleksandr-shmat/orch-webui#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oleksandr-shmat/orch-webui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/oleksandr-shmat/orch-webui/issues"
+  },
+  "keywords": [
+    "orch",
+    "ai-agents",
+    "orchestrator",
+    "web-ui",
+    "vue",
+    "fastify",
+    "sse"
+  ],
   "workspaces": [
     "apps/*"
   ],
